@@ -72,8 +72,25 @@ type MemoryCache struct {
 }
 
 func NewMemoryCache() *MemoryCache {
-	return &MemoryCache{
+	m := &MemoryCache{
 		items: make(map[string]memoryItem),
+	}
+	go m.cleanupLoop()
+	return m
+}
+
+func (m *MemoryCache) cleanupLoop() {
+	ticker := time.NewTicker(5 * time.Minute)
+	defer ticker.Stop()
+	for range ticker.C {
+		m.mu.Lock()
+		now := time.Now()
+		for k, v := range m.items {
+			if now.After(v.expiry) {
+				delete(m.items, k)
+			}
+		}
+		m.mu.Unlock()
 	}
 }
 

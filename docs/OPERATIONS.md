@@ -8,7 +8,7 @@
 
 ### サーバー側の環境変数 (`.env`)
 ```env
-# 認可サーバーの Introspection API エンドポイント
+# 認可サーバーの Introspection API エンドポイント (※認証なしでテストする場合は空に設定)
 OAUTH_INTROSPECT_URL=https://{your-idp-domain}/oauth2/v1/introspect
 
 # サーバー検証用のクライアントIDとシークレット (Basic認証用)

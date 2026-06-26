@@ -43,7 +43,7 @@ func init() {
 	oauthClientSecret = os.Getenv("OAUTH_CLIENT_SECRET")
 
 	if oauthIntrospectURL == "" || oauthClientID == "" || oauthClientSecret == "" {
-		log.Println("WARNING: OAUTH_INTROSPECT_URL, OAUTH_CLIENT_ID, or OAUTH_CLIENT_SECRET is missing. Introspection will fail.")
+		log.Println("WARNING: OAUTH_INTROSPECT_URL, OAUTH_CLIENT_ID, or OAUTH_CLIENT_SECRET is missing.")
 	}
 }
 
@@ -59,9 +59,12 @@ func hashToken(token string) string {
 // 有効なトークンであれば true を、無効であれば false を返します。
 func introspectToken(token string) (bool, error) {
 	if oauthIntrospectURL == "" {
-		// 環境変数が未設定の場合はローカル開発用のモック動作とみなします
-		log.Println("Mocking introspection: Returning true")
-		return true, nil
+		if os.Getenv("MOCK_AUTH") == "true" {
+			log.Println("Mocking introspection: Returning true (MOCK_AUTH is true)")
+			return true, nil
+		}
+		log.Println("OAUTH_INTROSPECT_URL is missing and MOCK_AUTH is not true. Rejecting token.")
+		return false, nil
 	}
 
 	// x-www-form-urlencoded 形式でパラメータを準備します
