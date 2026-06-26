@@ -8,6 +8,7 @@ embed_func = get_registry().get("sentence-transformers").create(name=model_name)
 class WikiChunk(LanceModel):
     """
     LanceDB用のスキーマ定義。
+    Wikipediaの記事データを分割した「チャンク（文章の塊）」ごとに保存します。
     text フィールドを SourceField として指定することで、Insert時に自動でベクトル化が行われます。
     """
     chunk_id: str
@@ -16,3 +17,4 @@ class WikiChunk(LanceModel):
     vector: Vector(embed_func.ndims()) = embed_func.VectorField() # type: ignore
     title: str
     url: str
+
