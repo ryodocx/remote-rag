@@ -37,7 +37,7 @@ make build-all
 ```bash
 cd deploy
 # 認証ヘルパーの変更を反映してコンテナを再起動
-docker-compose up -d --build auth-helper
+docker compose up -d --build auth-helper
 ```
 
 ## 4. MCP Server の開発

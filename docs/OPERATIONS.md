@@ -38,10 +38,12 @@ export MCP_REMOTE_URL=https://your-caddy-server-domain
 cd deploy
 
 # イメージのビルドとバックグラウンド起動
-docker-compose up -d --build
+docker compose up -d --build
+```
 
-# 起動状況の確認
-docker-compose ps
+### 2. コンテナの稼働確認
+```bash
+docker compose ps
 ```
 
 ## 3. 監視とトラブルシューティング
@@ -50,7 +52,7 @@ docker-compose ps
 クライアントからアクセスできない場合、まずは `auth-helper` のログを確認します。
 ```bash
 cd deploy
-docker-compose logs auth-helper
+docker compose logs auth-helper
 ```
 *   **原因の切り分け**:
     *   `Introspection failed`: 認可サーバーへの通信エラー、または環境変数の設定ミス（Client ID/Secretが間違っている）の可能性があります。
@@ -60,7 +62,7 @@ docker-compose logs auth-helper
 SSEストリーミングが途切れる場合、Caddy のログを確認します。
 ```bash
 cd deploy
-docker-compose logs caddy
+docker compose logs caddy
 ```
 *   **原因の切り分け**:
     *   Caddy と `mcp-server` 間の通信が切れている場合は、MCPサーバー側の処理負荷が高すぎる可能性があります。
@@ -76,5 +78,5 @@ docker-compose logs caddy
 
 ```bash
 cd deploy
-docker-compose exec redis redis-cli FLUSHALL
+docker compose exec redis redis-cli FLUSHALL
 ```

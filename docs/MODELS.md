@@ -18,13 +18,22 @@ Remote RAG MCP Server では、テキストのベクトル化（Embedding）と�
 
 ---
 
-## ユースケース別 推奨構成 (モデル設定スニペット)
+## ユースケース別 推奨構成
 
-以下は、要件に合わせた `.env` または `docker-compose.yml` への設定例です。
+要件に合わせた推奨構成の比較表です。用途に合う構成を選択し、`.env` または `docker-compose.yml` に設定してください。
 
-### 1. 現代の標準 (コスパ重視・デフォルト)
-*   **特徴**: わずか1.4GB程度のメモリで、IT技術や日本語の文脈を高度に理解するバランス構成。
-*   **予想メモリ**: 約 1.4 GB
+| 構成名 | 検索品質 | 処理速度 | 予想メモリ | 特徴 | `EMBEDDING_MODEL` | `RERANKER_MODEL` |
+| :--- | :---: | :---: | :--- | :--- | :--- | :--- |
+| **1. 現代の標準** (デフォルト) | ⭐⭐⭐⭐ | ⚡⚡⚡⚡ | 約 1.4 GB | わずかなメモリでIT技術や日本語の文脈を高度に理解するバランス構成。 | `intfloat/multilingual-e5-base` | `cross-encoder/mmarco-mMiniLMv2-L12-H384-v1` |
+| **2. 超軽量化** | ⭐⭐⭐ | ⚡⚡⚡⚡⚡ | 約 0.8 GB | 極限まで軽く常駐に最適。ただし複雑な文脈の一致度はやや低下。 | `intfloat/multilingual-e5-small` | `none` (無効化) |
+| **3. 最高峰精度** | ⭐⭐⭐⭐⭐ | ⚡⚡ | 約 4.0 GB+ | オープンソース最強クラスの精度。複雑な質問にも高精度で答えるが非常に重い。 | `BAAI/bge-m3` | `BAAI/bge-reranker-v2-m3` |
+| **4. 日本語特化** | ⭐⭐⭐⭐ | ⚡⚡⚡ | 約 1.8 GB | 社内文書が完全に日本語のみの場合に最適化されたモデル。プレフィックス不要。 | `pkshatech/GLuCoSE-base-ja` | `cross-encoder/mmarco-mMiniLMv2-L12-H384-v1` |
+| **5. プレフィックス不要・多言語** | ⭐⭐⭐⭐ | ⚡⚡⚡⚡ | 約 1.4 GB | e5系の `query:` 指定が面倒な場合や、一般的な文章検索に適した安定板。 | `sentence-transformers/paraphrase-multilingual-mpnet-base-v2` | `cross-encoder/mmarco-mMiniLMv2-L12-H384-v1` |
+
+### 設定スニペット (.env)
+
+<details>
+<summary>1. 現代の標準 (コスパ重視・デフォルト) の設定例</summary>
 
 ```dotenv
 # デフォルト値のため、設定を省略した場合もこの挙動になります。
@@ -35,10 +44,10 @@ EMBEDDING_PREFIX_PASSAGE="passage: "
 RERANKER_MODEL=cross-encoder/mmarco-mMiniLMv2-L12-H384-v1
 RERANKER_ONNX_FILE=onnx/model_quint8_avx2.onnx
 ```
+</details>
 
-### 2. 超軽量化 (速度・省メモリ重視)
-*   **特徴**: Rerankerを無効化し、Embeddingもより小さなモデルに変更。メモリ1GB未満で常駐可能ですが、精細な文脈の一致度はやや低下します。
-*   **予想メモリ**: 約 0.8 GB
+<details>
+<summary>2. 超軽量化 (速度・省メモリ重視) の設定例</summary>
 
 ```dotenv
 EMBEDDING_MODEL=intfloat/multilingual-e5-small
@@ -47,10 +56,10 @@ EMBEDDING_PREFIX_QUERY="query: "
 EMBEDDING_PREFIX_PASSAGE="passage: "
 RERANKER_MODEL=none  # Rerankerを無効化
 ```
+</details>
 
-### 3. 最高峰精度 (クオリティ重視・ハイエンド)
-*   **特徴**: オープンソース最強クラスのモデル。複雑な質問にも高精度で答えますが、メモリとCPUを非常に多く消費します。
-*   **予想メモリ**: 約 4.0 GB 以上
+<details>
+<summary>3. 最高峰精度 (クオリティ重視・ハイエンド) の設定例</summary>
 
 ```dotenv
 EMBEDDING_MODEL=BAAI/bge-m3
@@ -60,6 +69,33 @@ EMBEDDING_PREFIX_PASSAGE=""
 RERANKER_MODEL=BAAI/bge-reranker-v2-m3
 RERANKER_ONNX_FILE=none
 ```
+</details>
+
+<details>
+<summary>4. 日本語特化 (日本語文書のみを扱う場合) の設定例</summary>
+
+```dotenv
+EMBEDDING_MODEL=pkshatech/GLuCoSE-base-ja
+EMBEDDING_ONNX_FILE=none  # HuggingFaceのPyTorch形式を利用
+EMBEDDING_PREFIX_QUERY=""
+EMBEDDING_PREFIX_PASSAGE=""
+RERANKER_MODEL=cross-encoder/mmarco-mMiniLMv2-L12-H384-v1
+RERANKER_ONNX_FILE=onnx/model_quint8_avx2.onnx
+```
+</details>
+
+<details>
+<summary>5. プレフィックス不要・多言語 (旧標準の安定板) の設定例</summary>
+
+```dotenv
+EMBEDDING_MODEL=sentence-transformers/paraphrase-multilingual-mpnet-base-v2
+EMBEDDING_ONNX_FILE=onnx/model.onnx  # ONNXに対応
+EMBEDDING_PREFIX_QUERY=""
+EMBEDDING_PREFIX_PASSAGE=""
+RERANKER_MODEL=cross-encoder/mmarco-mMiniLMv2-L12-H384-v1
+RERANKER_ONNX_FILE=onnx/model_quint8_avx2.onnx
+```
+</details>
 
 > [!WARNING]
 > **DBの再構築（データの全消去）について**
