@@ -20,9 +20,20 @@ import (
 )
 
 const (
-	serviceName = "remote-rag-mcp" // Keychainに保存する際のサービス名
-	accountName = "oauth-token"    // Keychainに保存する際のアカウント名
+	serviceName = "rrag-mcp" // Keychainに保存する際のサービス名
 )
+
+func getAccountName() string {
+	profile := os.Getenv("RRAG_PROFILE")
+	if profile != "" {
+		return "oauth-token-" + profile
+	}
+	clientID := os.Getenv("OAUTH_CLIENT_ID")
+	if clientID != "" {
+		return "oauth-token-" + clientID
+	}
+	return "oauth-token"
+}
 
 // TokenData はアクセストークンおよびリフレッシュトークンの情報を保持し、JSONとしてシリアライズしてKeychainに保存されます
 type TokenData struct {
@@ -174,7 +185,7 @@ func saveToken(tok *oauth2.Token) {
 		fmt.Fprintf(os.Stderr, "Failed to marshal token: %v\n", err)
 		return
 	}
-	err = keyring.Set(serviceName, accountName, string(bytes))
+	err = keyring.Set(serviceName, getAccountName(), string(bytes))
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to save to keyring: %v\n", err)
 	}
@@ -182,7 +193,7 @@ func saveToken(tok *oauth2.Token) {
 
 // GetValidToken はKeychainからトークンを取得し、有効期限を確認します。トークンが存在しないか期限切れの場合は再認証を促します。
 func GetValidToken() (string, error) {
-	secret, err := keyring.Get(serviceName, accountName)
+	secret, err := keyring.Get(serviceName, getAccountName())
 	if err != nil {
 		// Keychainにトークンが見つからない場合は新規認証を実行
 		return Authenticate()
@@ -194,13 +205,29 @@ func GetValidToken() (string, error) {
 	}
 
 	if time.Now().After(data.Expiry) {
-		// Need to refresh. For simplicity, just re-authenticate if no refresh token logic
+		// Need to refresh
 		if data.RefreshToken == "" {
 			return Authenticate()
 		}
-		// In a full implementation, we would use oauth2 to refresh the token here.
-		// Mocking re-auth for now:
-		return Authenticate()
+		
+		// TokenSourceを使用してトークンをリフレッシュ
+		conf := getOAuth2Config()
+		tok := &oauth2.Token{
+			AccessToken:  data.AccessToken,
+			RefreshToken: data.RefreshToken,
+			Expiry:       data.Expiry,
+		}
+		
+		tokenSource := conf.TokenSource(context.Background(), tok)
+		newTok, err := tokenSource.Token()
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Failed to refresh token in background: %v\n", err)
+			return Authenticate() // リフレッシュ失敗時は再認証
+		}
+		
+		// リフレッシュ成功時、新しいトークンを保存
+		saveToken(newTok)
+		return newTok.AccessToken, nil
 	}
 
 	return data.AccessToken, nil
