@@ -1,6 +1,6 @@
 module bridge
 
-go 1.21
+go 1.26.4
 
 require (
 	github.com/zalando/go-keyring v0.2.3

@@ -1,6 +1,6 @@
 module auth-helper
 
-go 1.21
+go 1.26.4
 
 require github.com/redis/go-redis/v9 v9.5.1
 

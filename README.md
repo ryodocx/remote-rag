@@ -9,8 +9,8 @@
   </p>
 
   [![Docker](https://img.shields.io/badge/docker-%230db7ed.svg?style=flat&logo=docker&logoColor=white)](#)
-  [![Python](https://img.shields.io/badge/python-3.11+-blue.svg)](#)
-  [![Go](https://img.shields.io/badge/go-1.21+-00ADD8.svg)](#)
+  [![Python](https://img.shields.io/badge/python-3.14+-blue.svg)](#)
+  [![Go](https://img.shields.io/badge/go-1.26+-00ADD8.svg)](#)
   [![MCP](https://img.shields.io/badge/Model_Context_Protocol-Enabled-green.svg)](https://modelcontextprotocol.io/)
   [![License](https://img.shields.io/badge/license-MIT-green.svg)](#)
 </div>
@@ -202,7 +202,7 @@ OAUTH_CLIENT_SECRET=
   }
 }
 ```
-*(※Python 3.11以上および `server/core/requirements.txt` のパッケージがPCにインストールされている必要があります)*
+*(※Python 3.14以上および `server/core/requirements.txt` のパッケージがPCにインストールされている必要があります)*
 
 ---
 
