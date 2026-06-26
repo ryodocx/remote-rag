@@ -3,8 +3,13 @@ from src.database.client import DatabaseClient
 from src.utils.token_counter import count_tokens
 
 logger = logging.getLogger(__name__)
-if not logger.hasHandlers():
-    logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+
+# スコアフィルタリングの閾値定数
+# Reranker の relevance_score に対する閾値。これ以下のスコアのチャンクは除外される。
+DEFAULT_RELEVANCE_THRESHOLD = -1.0
+# クエリがチャンク本文に完全一致する場合の緩和閾値（マニアックな用語の救済用）
+EXACT_MATCH_RELEVANCE_THRESHOLD = -5.0
+
 
 class WikiSearcher:
     """
@@ -51,8 +56,8 @@ class WikiSearcher:
             # マニアックな用語の検索時にスコアが低くても救済するためのロジック
             is_exact_match = query.lower() in text.lower()
             
-            # 完全一致の場合は閾値を大幅に緩和（-5.0）、それ以外は-1.0として幻覚（ハルシネーション）を防ぐ
-            threshold = -5.0 if is_exact_match else -1.0
+            # 完全一致の場合は閾値を大幅に緩和、それ以外は厳格な閾値を適用
+            threshold = EXACT_MATCH_RELEVANCE_THRESHOLD if is_exact_match else DEFAULT_RELEVANCE_THRESHOLD
             
             if relevance_score is not None and relevance_score <= threshold:
                 logger.debug(f"Result dropped due to low relevance_score: {relevance_score} <= {threshold}")

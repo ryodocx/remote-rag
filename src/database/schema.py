@@ -1,7 +1,6 @@
 from lancedb.pydantic import LanceModel, Vector
 from lancedb.embeddings import EmbeddingFunctionRegistry, TextEmbeddingFunction
 from pydantic import PrivateAttr
-import torch
 
 model_name = "paraphrase-multilingual-MiniLM-L12-v2"
 registry = EmbeddingFunctionRegistry.get_instance()
@@ -39,6 +38,10 @@ class WikiChunk(LanceModel):
     LanceDB用のスキーマ定義。
     Wikipediaの記事データを分割した「チャンク（文章の塊）」ごとに保存します。
     text フィールドを SourceField として指定することで、Insert時に自動でベクトル化が行われます。
+    
+    NOTE: このモジュールをimportすると、embed_func の初期化（および ndims() でのダミー推論）が
+    走るため、テスト等で不要な場合は注意が必要です。これは LanceDB の Vector フィールド定義に
+    次元数が必要というスキーマ設計上の制約です。
     """
     chunk_id: str
     page_id: str
@@ -46,4 +49,3 @@ class WikiChunk(LanceModel):
     vector: Vector(embed_func.ndims()) = embed_func.VectorField() # type: ignore
     title: str
     url: str
-

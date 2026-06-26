@@ -3,13 +3,14 @@ import logging
 import lancedb
 from src.database.schema import WikiChunk
 
-# ログの設定
 logger = logging.getLogger(__name__)
-if not logger.hasHandlers():
-    logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 
-# デフォルトのデータベースパス
-DB_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "data", "lancedb")
+# デフォルトのデータベースパス（環境変数 LANCEDB_PATH で上書き可能）
+_DEFAULT_DB_PATH = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "data", "lancedb"
+)
+DB_PATH = os.environ.get("LANCEDB_PATH", _DEFAULT_DB_PATH)
+
 
 class DatabaseClient:
     """
@@ -39,24 +40,14 @@ class DatabaseClient:
             CrossEncoderReranker: 検索結果再評価用のモデルインスタンス。
         """
         if self._reranker_instance is None:
-            logger.info("Loading CrossEncoder Reranker model with ONNX backend...")
-            from lancedb.rerankers import CrossEncoderReranker
-            from sentence_transformers import CrossEncoder
+            from src.database.reranker import OnnxCrossEncoderReranker
             
-            self._reranker_instance = CrossEncoderReranker(
+            self._reranker_instance = OnnxCrossEncoderReranker(
                 model_name="cross-encoder/mmarco-mMiniLMv2-L12-H384-v1",
-                column="text"
+                column="text",
+                onnx_file_name="onnx/model_quint8_avx2.onnx"
             )
-            
-            # ONNXランタイムとINT8量子化を適用
-            self._reranker_instance._model = CrossEncoder(
-                self._reranker_instance.model_name,
-                device=self._reranker_instance.device,
-                trust_remote_code=self._reranker_instance.trust_remote_code,
-                backend="onnx",
-                model_kwargs={"file_name": "onnx/model_quint8_avx2.onnx"}
-            )
-            logger.info("Reranker model loaded with ONNX backend successfully.")
+
                 
         return self._reranker_instance
 
@@ -94,7 +85,9 @@ class DatabaseClient:
             page_id (str): 削除対象となるWikipediaのページID。
         """
         try:
-            self.table.delete(f"page_id = '{page_id}'")
+            # SQLインジェクション対策: シングルクォートをエスケープ
+            safe_page_id = page_id.replace("'", "''")
+            self.table.delete(f"page_id = '{safe_page_id}'")
             logger.debug(f"Deleted old chunks for page_id: {page_id}")
         except Exception as e:
             logger.warning(f"Failed to delete chunks for page {page_id}. It might be a new page. Error: {e}")
@@ -132,6 +125,9 @@ class DatabaseClient:
             
         Returns:
             list[dict]: 検索結果の辞書リスト。
+            
+        Raises:
+            Exception: フォールバックも含め全ての検索手法が失敗した場合。
         """
         try:
             if search_type == "hybrid":
@@ -142,6 +138,10 @@ class DatabaseClient:
             else:
                 # search_type == "vector"
                 results = self.table.search(query, query_type="vector").rerank(reranker=self.reranker).limit(limit).to_list()
+        except (OSError, ConnectionError, PermissionError) as e:
+            # 致命的なI/Oエラーはフォールバックせず呼び出し側に伝播
+            logger.error(f"Fatal I/O error during search: {e}")
+            raise
         except Exception as e:
             # FTSインデックスが無い、またはLanceDB特有のArrow不整合エラー等で失敗時はベクトル検索にフォールバック
             logger.warning(f"Hybrid search failed, falling back to vector search. Error: {e}")
