@@ -182,7 +182,9 @@ func introspectToken(ctx context.Context, token string) (bool, error) {
 		span.SetAttributes(attribute.String("error.reason", "max_retries_exceeded"))
 		return false, err
 	}
-	defer resp.Body.Close()
+	if resp != nil && resp.Body != nil {
+		defer resp.Body.Close()
+	}
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
