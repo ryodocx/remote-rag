@@ -1,51 +1,139 @@
 import os
+import logging
 import lancedb
 from src.database.schema import WikiChunk
+
+# ログの設定
+logger = logging.getLogger(__name__)
+if not logger.hasHandlers():
+    logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 
 # デフォルトのデータベースパス
 DB_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "data", "lancedb")
 
 class DatabaseClient:
+    """
+    LanceDBを操作し、Wikipedia記事のチャンクデータに対するベクトル検索およびフルテキスト検索（FTS）を提供するクライアント。
+    """
     def __init__(self, db_path: str = DB_PATH, table_name: str = "wiki_chunks"):
+        """
+        DatabaseClientの初期化。
+        
+        Args:
+            db_path (str): LanceDBのデータ保存先ディレクトリパス。
+            table_name (str): 操作対象のテーブル名（デフォルト: 'wiki_chunks'）。
+        """
         os.makedirs(os.path.dirname(db_path), exist_ok=True)
         self.db = lancedb.connect(db_path)
         self.table_name = table_name
         self.table = self._get_or_create_table()
+        self._reranker = None
+
+    @property
+    def reranker(self):
+        """
+        CrossEncoderによるRerankerモデルを遅延読み込み（Lazy Load）で取得します。
+        メモリ消費を抑えつつ、必要なタイミングで1度だけロードします。
+        
+        Returns:
+            CrossEncoderReranker: 検索結果再評価用のモデルインスタンス。
+        """
+        if self._reranker is None:
+            logger.info("Loading CrossEncoder Reranker model...")
+            from lancedb.rerankers import CrossEncoderReranker
+            # 多言語対応の軽量クロスエンコーダーモデルを指定
+            self._reranker = CrossEncoderReranker(model_name="cross-encoder/mmarco-mMiniLMv2-L12-H384-v1")
+            logger.info("Reranker model loaded successfully.")
+        return self._reranker
 
     def _get_or_create_table(self):
+        """
+        指定されたテーブル名が存在する場合は開き、存在しない場合はスキーマに従って新規作成します。
+        
+        Returns:
+            lancedb.table.Table: LanceDBのテーブルオブジェクト。
+        """
         if self.table_name in self.db.table_names():
             return self.db.open_table(self.table_name)
         else:
             return self.db.create_table(self.table_name, schema=WikiChunk)
 
     def add_chunks(self, chunks: list[dict]):
+        """
+        データベースに複数のチャンクデータを一括追加します。
+        
+        Args:
+            chunks (list[dict]): WikiChunkスキーマに準拠した辞書のリスト。
+        """
         if not chunks:
             return
         
         self.table.add(chunks)
+        logger.info(f"Successfully added {len(chunks)} chunks to table '{self.table_name}'.")
 
     def delete_chunks_by_page(self, page_id: str):
-        """特定のページIDに紐づく古いチャンクを削除する"""
+        """
+        特定のページIDに紐づくチャンクを全て削除します。
+        新規記事の挿入前に行うことで、古いデータの重複を防ぎます。
+        
+        Args:
+            page_id (str): 削除対象となるWikipediaのページID。
+        """
         try:
             self.table.delete(f"page_id = '{page_id}'")
+            logger.debug(f"Deleted old chunks for page_id: {page_id}")
         except Exception as e:
-            print(f"Warning: Failed to delete chunks for page {page_id}. It might be a new page. Error: {e}")
+            logger.warning(f"Failed to delete chunks for page {page_id}. It might be a new page. Error: {e}")
 
     def create_fts_index(self):
-        """ハイブリッド検索用の全文検索インデックスを作成（更新後に実行推奨）"""
+        """
+        キーワード検索（フルテキスト検索）用のインデックスを再構築します。
+        データの追加・削除の後に実行することで検索品質を維持します。
+        """
+        logger.info("Creating/Replacing FTS index...")
         self.table.create_fts_index("text", replace=True)
+        logger.info("FTS index creation completed.")
 
-    def search(self, query: str, limit: int = 5):
-        """ベクトル検索を実行する。FTSインデックスがあればハイブリッド検索も可能"""
-        try:
-            from lancedb.rerankers import CrossEncoderReranker
-            # 軽量なクロスエンコーダーモデルを指定（多言語対応が必要な場合は適宜変更）
-            reranker = CrossEncoderReranker(model_name="cross-encoder/ms-marco-MiniLM-L-6-v2")
+    def optimize(self):
+        """
+        データベースのフラグメンテーションを解消し（コンパクション）、FTSインデックスを再構築します。
+        データの追加・削除を繰り返した後に発生しうるTantivy（Rustコア）の不整合エラーを防ぎます。
+        定期的な実行が推奨されます。
+        """
+        logger.info("Starting database optimization (compaction)...")
+        self.table.optimize()
+        logger.info("Optimization completed. Rebuilding FTS index...")
+        self.create_fts_index()
+        logger.info("All optimization tasks completed successfully.")
+
+    def search(self, query: str, limit: int = 5, search_type: str = "hybrid"):
+        """
+        与えられたクエリに対して、ベクトル検索、FTS検索、またはハイブリッド検索を実行します。
+        ハイブリッド検索が内部エラーで失敗した場合は、自動的にベクトル検索へフォールバックします。
+        
+        Args:
+            query (str): 検索する文字列。
+            limit (int): 取得する検索結果の最大件数（デフォルト: 5）。
+            search_type (str): 検索手法（'hybrid', 'fts', 'vector' のいずれか）。
             
-            # チャンク生成時のテキストに対してハイブリッド検索を行い、Rerankerで関連性を再計算
-            results = self.table.search(query, query_type="hybrid").rerank(reranker=reranker).limit(limit).to_list()
+        Returns:
+            list[dict]: 検索結果の辞書リスト。
+        """
+        try:
+            if search_type == "hybrid":
+                # チャンク生成時のテキストに対してハイブリッド検索を行い、Rerankerで関連性を再計算
+                results = self.table.search(query, query_type="hybrid").rerank(reranker=self.reranker).limit(limit).to_list()
+            elif search_type == "fts":
+                results = self.table.search(query, query_type="fts").limit(limit).to_list()
+            else:
+                # search_type == "vector"
+                results = self.table.search(query, query_type="vector").rerank(reranker=self.reranker).limit(limit).to_list()
         except Exception as e:
-            # FTSインデックスが無い、またはRerankerモデルのロード失敗時等はベクトル検索にフォールバック
-            print(f"Hybrid search failed, falling back to vector search. Error: {e}")
-            results = self.table.search(query).limit(limit).to_list()
+            # FTSインデックスが無い、またはLanceDB特有のArrow不整合エラー等で失敗時はベクトル検索にフォールバック
+            logger.warning(f"Hybrid search failed, falling back to vector search. Error: {e}")
+            try:
+                results = self.table.search(query, query_type="vector").rerank(reranker=self.reranker).limit(limit).to_list()
+            except Exception as inner_e:
+                logger.error(f"Vector search fallback with reranker also failed: {inner_e}. Falling back to pure vector search.")
+                results = self.table.search(query, query_type="vector").limit(limit).to_list()
         return results
