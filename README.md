@@ -6,7 +6,6 @@
   [![Python](https://img.shields.io/badge/python-3.11+-blue.svg)](#)
   [![Go](https://img.shields.io/badge/go-1.21+-00ADD8.svg)](#)
   [![MCP](https://img.shields.io/badge/Model_Context_Protocol-Enabled-green.svg)](https://modelcontextprotocol.io/)
-  [![License](https://img.shields.io/badge/license-MIT-green.svg)](#)
 </div>
 
 <br />
@@ -178,9 +177,7 @@ A. はい。Go言語で書かれているため、macOS、Linux、Windowsのい�
 
 ---
 
-## 📄 ライセンス・コントリビューション
-
-本プロジェクトは **MIT License** のもとで公開されています。
+## 📄 コントリビューション
 
 *   **IssueやPull Requestは大歓迎です！**
 *   新たなAIモデルの検証結果や、クライアント機能の拡充など、皆様からのコントリビューションをお待ちしております。
