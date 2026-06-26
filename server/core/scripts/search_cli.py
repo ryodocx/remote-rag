@@ -1,5 +1,10 @@
 import argparse
 import sys
+import os
+
+# srcモジュールを参照できるようにパスを追加
+sys.path.append(os.path.dirname(os.path.dirname(__file__)))
+
 from src.utils.logging_config import setup_logging
 from src.mcp_server.searcher import WikiSearcher
 

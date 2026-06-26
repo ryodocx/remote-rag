@@ -31,15 +31,15 @@ docker exec -it remote-rag bash
 ### 3. データの取り込み（Ingestion）
 コンテナ内で以下のコマンドを実行し、WikipediaのデータをLanceDBに取り込みます。
 ```bash
-# 100件のデータをサンプリングして取り込む場合
-python -m src.ingestion.wikipedia_ingest_100
+# RAG用データの投入（Wikipediaから20記事を取得してDBに保存）
+python scripts/ingest_cli.py wiki --count 20
 ```
 *(※初回実行時は、HuggingFaceからEmbeddingモデルとRerankerモデルが自動でダウンロードされます。)*
 
 ### 4. 検索CLIのテスト
 取り込んだデータをCLIからテスト検索できます。
 ```bash
-python search_cli.py "人工知能の歴史"
+python scripts/search_cli.py "人工知能の歴史"
 ```
 
 ### 5. MCPサーバーとしての起動
