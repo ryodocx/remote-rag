@@ -2,7 +2,35 @@
 
 本システムは、ローカル環境のAIエージェント（Claude Desktop, Cursorなど）から、セキュアな社内ネットワークやクラウド上のMCPサーバー（Model Context Protocol Server）へ接続するための認証・プロキシ基盤です。特定のベンダーに依存しない汎用的な **OAuth 2.0 / OIDC (RFC 7662: Token Introspection)** に準拠しています。
 
-## 1. システム構成図
+## 1. コンポーネント構成図
+
+```mermaid
+graph TD
+    subgraph Client Environment [Mac / Claude Desktop]
+        Agent[Claude Desktop / Cursor]
+        Bridge[Bridge CLI<br>Go]
+        KeyChain[(OS Keychain)]
+    end
+
+    subgraph Server Environment [Remote Linux / Windows]
+        Caddy[Caddy Reverse Proxy<br>HTTPS / TLS]
+        AuthHelper[Auth Helper<br>Go / Redis Cache]
+        MCPServer[MCP Server<br>Python / FastMCP]
+        LanceDB[(LanceDB<br>Vector + FTS)]
+    end
+
+    Agent -- stdio --> Bridge
+    Bridge -- "1. Get/Refresh Token" --> KeyChain
+    Bridge -- "2. HTTPS / SSE (Token Header)" --> Caddy
+    
+    Caddy -- "3. Forward Auth Request" --> AuthHelper
+    AuthHelper -- "4. Introspection" --> IdentityProvider[Identity Provider<br>Okta / Auth0]
+    
+    Caddy -- "5. Proxy if Valid" --> MCPServer
+    MCPServer -- "6. Hybrid Search" --> LanceDB
+```
+
+## 2. 認証シーケンス図
 
 以下の構成により、アプリケーション（MCPサーバー）から認証の責務を完全に切り離した「多層防御アーキテクチャ」を実現しています。
 
