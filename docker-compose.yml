@@ -1,0 +1,18 @@
+version: '3.8'
+
+services:
+  rag-app:
+    build: .
+    container_name: remote-rag
+    volumes:
+      # マウント設定: ホスト側のデータをコンテナに引き継ぐ
+      - ./data:/app/data
+      # HuggingFaceのモデルダウンロードキャッシュをホストと共有（起動ごとの再ダウンロード防止）
+      - huggingface_cache:/root/.cache/huggingface
+    # インタラクティブなCLI実行やMCPサーバーとしての実行を可能にする設定
+    stdin_open: true
+    tty: true
+    command: /bin/bash
+
+volumes:
+  huggingface_cache:
