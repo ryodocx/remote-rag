@@ -42,10 +42,17 @@ class DatabaseClient:
         if self._reranker_instance is None:
             from src.database.reranker import OnnxCrossEncoderReranker
             
+            reranker_model = os.environ.get("RERANKER_MODEL", "cross-encoder/mmarco-mMiniLMv2-L12-H384-v1")
+            reranker_onnx = os.environ.get("RERANKER_ONNX_FILE", "onnx/model_quint8_avx2.onnx")
+            
+            # 空文字や 'none' が指定された場合はRerankerを無効化
+            if not reranker_model or reranker_model.lower() == "none":
+                return None
+                
             self._reranker_instance = OnnxCrossEncoderReranker(
-                model_name="cross-encoder/mmarco-mMiniLMv2-L12-H384-v1",
+                model_name=reranker_model,
                 column="text",
-                onnx_file_name="onnx/model_quint8_avx2.onnx"
+                onnx_file_name=reranker_onnx if (reranker_onnx and reranker_onnx.lower() != "none") else None
             )
 
                 
@@ -132,12 +139,18 @@ class DatabaseClient:
         try:
             if search_type == "hybrid":
                 # チャンク生成時のテキストに対してハイブリッド検索を行い、Rerankerで関連性を再計算
-                results = self.table.search(query, query_type="hybrid").rerank(reranker=self.reranker).limit(limit).to_list()
+                q = self.table.search(query, query_type="hybrid")
+                if self.reranker:
+                    q = q.rerank(reranker=self.reranker)
+                results = q.limit(limit).to_list()
             elif search_type == "fts":
                 results = self.table.search(query, query_type="fts").limit(limit).to_list()
             else:
                 # search_type == "vector"
-                results = self.table.search(query, query_type="vector").rerank(reranker=self.reranker).limit(limit).to_list()
+                q = self.table.search(query, query_type="vector")
+                if self.reranker:
+                    q = q.rerank(reranker=self.reranker)
+                results = q.limit(limit).to_list()
         except (OSError, ConnectionError, PermissionError) as e:
             # 致命的なI/Oエラーはフォールバックせず呼び出し側に伝播
             logger.error(f"Fatal I/O error during search: {e}")
@@ -146,7 +159,10 @@ class DatabaseClient:
             # FTSインデックスが無い、またはLanceDB特有のArrow不整合エラー等で失敗時はベクトル検索にフォールバック
             logger.warning(f"Hybrid search failed, falling back to vector search. Error: {e}")
             try:
-                results = self.table.search(query, query_type="vector").rerank(reranker=self.reranker).limit(limit).to_list()
+                q = self.table.search(query, query_type="vector")
+                if self.reranker:
+                    q = q.rerank(reranker=self.reranker)
+                results = q.limit(limit).to_list()
             except Exception as inner_e:
                 logger.error(f"Vector search fallback with reranker also failed: {inner_e}. Falling back to pure vector search.")
                 results = self.table.search(query, query_type="vector").limit(limit).to_list()

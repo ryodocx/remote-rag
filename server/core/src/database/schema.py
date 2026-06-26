@@ -1,13 +1,21 @@
+import os
 from lancedb.pydantic import LanceModel, Vector
 from lancedb.embeddings import EmbeddingFunctionRegistry, TextEmbeddingFunction
 from pydantic import PrivateAttr
 
-model_name = "paraphrase-multilingual-MiniLM-L12-v2"
+# 環境変数からモデル設定を取得（デフォルトは multilingual-e5-base の INT8版）
+EMBEDDING_MODEL = os.environ.get("EMBEDDING_MODEL", "intfloat/multilingual-e5-base")
+EMBEDDING_ONNX_FILE = os.environ.get("EMBEDDING_ONNX_FILE", "onnx/model_qint8_avx512_vnni.onnx")
+
+# e5モデルなどで要求されるPrefix（未指定の場合はデフォルトを使用）
+EMBEDDING_PREFIX_QUERY = os.environ.get("EMBEDDING_PREFIX_QUERY", "query: ")
+EMBEDDING_PREFIX_PASSAGE = os.environ.get("EMBEDDING_PREFIX_PASSAGE", "passage: ")
+
 registry = EmbeddingFunctionRegistry.get_instance()
 
 @registry.register("quantized-sentence-transformers")
 class QuantizedSentenceTransformerEmbeddings(TextEmbeddingFunction):
-    name: str = model_name
+    name: str = EMBEDDING_MODEL
     _model: any = PrivateAttr(default=None)
     _ndims: int = PrivateAttr(default=None)
     
@@ -16,22 +24,39 @@ class QuantizedSentenceTransformerEmbeddings(TextEmbeddingFunction):
             self._ndims = len(self.generate_embeddings(["test"])[0])
         return self._ndims
 
+    def compute_source_embeddings(self, texts: list[str], *args, **kwargs):
+        """DBインサート時のベクトル化処理。必要に応じてPrefix(passage:)を付与します。"""
+        if EMBEDDING_PREFIX_PASSAGE:
+            texts = [EMBEDDING_PREFIX_PASSAGE + str(t.as_py() if hasattr(t, "as_py") else t) for t in texts]
+        return self.generate_embeddings(texts)
+
+    def compute_query_embeddings(self, query: str, *args, **kwargs):
+        """検索時のベクトル化処理。必要に応じてPrefix(query:)を付与します。"""
+        if EMBEDDING_PREFIX_QUERY:
+            query = EMBEDDING_PREFIX_QUERY + query
+        return self.generate_embeddings([query])
+
     def generate_embeddings(self, texts):
+        """SentenceTransformerによる実際の埋め込み生成処理"""
         if self._model is None:
             import logging
             from sentence_transformers import SentenceTransformer
-            logging.getLogger(__name__).info("Loading Quantized SentenceTransformer with ONNX...")
-            # 施策1 & 3: ONNXランタイムと量子化済みモデル(INT8)を組み合わせて極限までメモリ削減
+            logging.getLogger(__name__).info(f"Loading Quantized SentenceTransformer ({self.name}) with ONNX...")
+            
+            kwargs = {}
+            if EMBEDDING_ONNX_FILE and str(EMBEDDING_ONNX_FILE).lower() != "none":
+                kwargs["file_name"] = EMBEDDING_ONNX_FILE
+                
             self._model = SentenceTransformer(
                 self.name,
                 backend="onnx",
-                model_kwargs={"file_name": "onnx/model_quint8_avx2.onnx"}
+                model_kwargs=kwargs if kwargs else None
             )
         
         # 戻り値をリスト形式に変換 (LanceDB用)
         return self._model.encode(texts).tolist()
 
-embed_func = registry.get("quantized-sentence-transformers").create(name=model_name)
+embed_func = registry.get("quantized-sentence-transformers").create(name=EMBEDDING_MODEL)
 
 class WikiChunk(LanceModel):
     """
