@@ -1,5 +1,13 @@
+\"\"\"
+MCP (Model Context Protocol) サーバーのエントリーポイント。
+FastMCPを使用して、Wikipedia RAGエンジンの検索機能を外部のAIエージェントに公開します。
+\"\"\"
+import logging
 from mcp.server.fastmcp import FastMCP
 from src.mcp_server.searcher import WikiSearcher
+
+# ログの設定
+logger = logging.getLogger(__name__)
 
 # MCPサーバーのインスタンスを作成
 mcp = FastMCP("WikiRAG")
@@ -10,11 +18,13 @@ searcher = WikiSearcher(max_tokens=4000)
 @mcp.tool()
 def search_wiki(query: str, limit: int = 5) -> str:
     """
-    ナレッジベース（Wiki）からクエリに関連する情報を検索します。
+    社内ナレッジベース（Wikipediaデータ）から、指定されたクエリに関連する情報を検索します。
+    ハイブリッド検索（ベクトル＋キーワード）とRerankerを組み合わせた高精度な検索を実行し、
+    LLMが解釈しやすいフォーマットの文字列として返却します。
     
     Args:
-        query: 検索クエリ (String)
-        limit: 取得件数 (Integer)
+        query: 検索クエリ文字列。自然言語での質問や、単語の羅列などを指定します。
+        limit: 取得したい最大件数。デフォルトは5件。
     """
     results = searcher.search(query, limit=limit)
     
