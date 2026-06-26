@@ -14,6 +14,11 @@ OAUTH_INTROSPECT_URL=https://{your-idp-domain}/oauth2/v1/introspect
 # サーバー検証用のクライアントIDとシークレット (Basic認証用)
 OAUTH_CLIENT_ID=your-server-client-id
 OAUTH_CLIENT_SECRET=your-server-client-secret
+
+# --- オプション: AIモデルの設定 ---
+# 詳細は docs/MODELS.md を参照してください。
+# EMBEDDING_MODEL=intfloat/multilingual-e5-base
+# RERANKER_MODEL=cross-encoder/mmarco-mMiniLMv2-L12-H384-v1
 ```
 
 ### クライアント（Bridge）側の環境変数
@@ -41,7 +46,7 @@ cd deploy
 docker compose up -d --build
 ```
 
-### 2. コンテナの稼働確認
+### 2.1 コンテナの稼働確認
 ```bash
 docker compose ps
 ```

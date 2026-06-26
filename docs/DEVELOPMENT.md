@@ -55,3 +55,20 @@ pip install -r requirements.txt
 # 単体でのテスト起動 (stdioモード)
 python -m src.mcp_server.server --transport stdio
 ```
+
+### 4.1 AIモデルの動作テスト
+
+環境変数を用いてAIモデル（EmbeddingやReranker）を差し替えた際の動作確認は、専用のCLIスクリプトを使用すると便利です。
+
+```bash
+# 例: 日本語特化モデルのテスト
+export EMBEDDING_MODEL="pkshatech/GLuCoSE-base-ja"
+export EMBEDDING_PREFIX_QUERY=""
+export EMBEDDING_PREFIX_PASSAGE=""
+
+# ダミーデータの取り込みテスト
+python scripts/ingest_cli.py dummy
+
+# 検索（ハイブリッド検索 + リランク）のテスト
+python scripts/search_cli.py "人工知能"
+```
