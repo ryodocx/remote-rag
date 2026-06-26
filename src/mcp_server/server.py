@@ -23,7 +23,15 @@ def search_wiki(query: str, limit: int = 5) -> str:
         
     formatted = []
     for i, res in enumerate(results, 1):
-        formatted.append(f"### {res['title']}\n- URL: {res['url']}\n- Content:\n{res['text']}")
+        score_text = ""
+        if res.get('relevance_score') is not None:
+            score_text = f"- Relevance Score: {res['relevance_score']:.2f}\n"
+        elif res.get('score') is not None:
+            score_text = f"- FTS Score: {res['score']:.2f}\n"
+        elif res.get('distance') is not None:
+            score_text = f"- Vector Distance: {res['distance']:.2f}\n"
+            
+        formatted.append(f"### {res['title']}\n- URL: {res['url']}\n{score_text}- Content:\n{res['text']}")
         
     return "\n\n".join(formatted)
 
