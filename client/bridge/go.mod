@@ -3,8 +3,8 @@ module bridge
 go 1.26.4
 
 require (
-	github.com/zalando/go-keyring v0.2.3
-	golang.org/x/oauth2 v0.15.0
+	github.com/zalando/go-keyring v0.2.8
+	golang.org/x/oauth2 v0.36.0
 )
 
 require (
