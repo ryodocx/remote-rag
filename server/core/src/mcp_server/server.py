@@ -5,8 +5,17 @@ FastMCPを使用して、Wikipedia RAGエンジンの検索機能を外部のAI�
 import logging
 from mcp.server.fastmcp import FastMCP
 from src.utils.logging_config import setup_logging
+from src.utils.telemetry import setup_telemetry, get_tracer, get_meter
 
 logger = logging.getLogger(__name__)
+tracer = get_tracer(__name__)
+meter = get_meter(__name__)
+
+# Metrics
+search_counter = meter.create_counter(
+    "rrag.search.count",
+    description="Number of search requests processed",
+)
 
 # MCPサーバーのインスタンスを作成
 mcp = FastMCP("WikiRAG")
@@ -34,14 +43,22 @@ def search_wiki(query: str, limit: int = 5, metadata_filter: str = None) -> str:
         limit: 取得したい最大件数。デフォルトは5件。
         metadata_filter: オプション。メタデータ（JSON）での絞り込み文字列 (例: '"category": "IT"')
     """
-    searcher = _get_searcher()
-    where_clause = f"metadata LIKE '%{metadata_filter}%'" if metadata_filter else None
-    results = searcher.search(query, limit=limit, where=where_clause)
-    
-    if not results:
-        return "No relevant information found in the Wiki."
+    with tracer.start_as_current_span("search_wiki") as span:
+        span.set_attribute("search.query", query)
+        span.set_attribute("search.limit", limit)
+        search_counter.add(1, {"metadata_filter": bool(metadata_filter)})
         
-    formatted = []
+        searcher = _get_searcher()
+        where_clause = f"metadata LIKE '%{metadata_filter}%'" if metadata_filter else None
+        results = searcher.search(query, limit=limit, where=where_clause)
+        
+        if not results:
+            span.set_attribute("search.results_count", 0)
+            return "No relevant information found in the Wiki."
+            
+        span.set_attribute("search.results_count", len(results))
+        
+        formatted = []
     for i, res in enumerate(results, 1):
         score_text = ""
         if res.get('relevance_score') is not None:
@@ -63,11 +80,13 @@ def read_wiki_page(page_id: str) -> str:
     Args:
         page_id: 取得したいページのID文字列。
     """
-    searcher = _get_searcher()
-    content = searcher.read_page(page_id)
-    if not content:
-        return f"No document found for page_id: {page_id}"
-    return content
+    with tracer.start_as_current_span("read_wiki_page") as span:
+        span.set_attribute("page_id", page_id)
+        searcher = _get_searcher()
+        content = searcher.read_page(page_id)
+        if not content:
+            return f"No document found for page_id: {page_id}"
+        return content
 
 @mcp.tool()
 def search_by_metadata(key: str, value: str, limit: int = 5) -> str:
@@ -102,17 +121,22 @@ def list_wiki_pages(limit: int = 50) -> str:
     Args:
         limit: 取得したい最大件数。デフォルトは50件。
     """
-    searcher = _get_searcher()
-    pages = searcher.list_pages(limit=limit)
-    
-    if not pages:
-        return "No pages found in the database."
+    with tracer.start_as_current_span("list_wiki_pages") as span:
+        span.set_attribute("limit", limit)
+        searcher = _get_searcher()
+        pages = searcher.list_pages(limit=limit)
         
-    formatted = ["### Available Pages"]
-    for i, p in enumerate(pages, 1):
-        formatted.append(f"{i}. **{p['title']}** (ID: `{p['page_id']}`) - {p['url']}")
+        if not pages:
+            span.set_attribute("results_count", 0)
+            return "No pages found in the database."
+            
+        span.set_attribute("results_count", len(pages))
         
-    return "\n".join(formatted)
+        formatted = ["### Available Pages"]
+        for i, p in enumerate(pages, 1):
+            formatted.append(f"{i}. **{p['title']}** (ID: `{p['page_id']}`) - {p['url']}")
+            
+        return "\n".join(formatted)
 
 if __name__ == "__main__":
     import argparse
@@ -127,8 +151,9 @@ if __name__ == "__main__":
     
     args = parser.parse_args()
     
-    # エントリーポイントでのみロギングを設定
+    # エントリーポイントでのみロギング・テレメトリを設定
     setup_logging()
+    setup_telemetry(service_name="rrag-mcp-server")
     
     # SSE利用時のhost/port設定を反映
     mcp.settings.host = args.host
