@@ -12,6 +12,7 @@ __pycache__/
 .env
 .vscode/
 .idea/
-local_embedding_model/
+# Models
+models/
 tests/
 scripts/

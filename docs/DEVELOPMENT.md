@@ -10,11 +10,11 @@
 
 ## 2. ブリッジ (Bridge) のビルドと配布
 
-クライアント用中継ブリッジは `bridge/` ディレクトリにソースコードがあります。
+クライアント用中継ブリッジは `client/bridge/` ディレクトリにソースコードがあります。
 このツールはCursorやClaude Desktop等のローカルから実行されるため、各OS向けにビルドする必要があります。
 
 ```bash
-cd bridge
+cd client/bridge
 
 # 依存関係のダウンロード
 go mod tidy
@@ -31,20 +31,22 @@ make build-all
 
 ## 3. 認証ヘルパー (Auth Helper) の開発
 
-認証ヘルパーは `auth-helper/` ディレクトリにあります。
+認証ヘルパーは `server/auth-helper/` ディレクトリにあります。
 トークンのハッシュ化やRedis通信のロジックを改修した場合は、Dockerコンテナを再ビルドして検証します。
 
 ```bash
+cd deploy
 # 認証ヘルパーの変更を反映してコンテナを再起動
 docker-compose up -d --build auth-helper
 ```
 
 ## 4. MCP Server の開発
 
-MCPの検索ロジックやツール定義は `src/mcp_server/server.py` 等のPythonコードに記述されています。
+MCPの検索ロジックやツール定義は `server/core/src/mcp_server/server.py` 等のPythonコードに記述されています。
 開発時はDockerコンテナ内で起動するか、ローカルのPython仮想環境（`.venv`）を利用して検証します。
 
 ```bash
+cd server/core
 # ローカル仮想環境のセットアップ
 python -m venv .venv
 source .venv/bin/activate

@@ -35,6 +35,8 @@ export MCP_REMOTE_URL=https://your-caddy-server-domain
 本番環境またはステージング環境でのデプロイは、Docker Compose を使用して一括で起動します。
 
 ```bash
+cd deploy
+
 # イメージのビルドとバックグラウンド起動
 docker-compose up -d --build
 
@@ -47,6 +49,7 @@ docker-compose ps
 ### 3.1 認証エラー (401 Unauthorized)
 クライアントからアクセスできない場合、まずは `auth-helper` のログを確認します。
 ```bash
+cd deploy
 docker-compose logs auth-helper
 ```
 *   **原因の切り分け**:
@@ -56,6 +59,7 @@ docker-compose logs auth-helper
 ### 3.2 AIからの応答が途切れる・タイムアウトする
 SSEストリーミングが途切れる場合、Caddy のログを確認します。
 ```bash
+cd deploy
 docker-compose logs caddy
 ```
 *   **原因の切り分け**:
@@ -71,5 +75,6 @@ docker-compose logs caddy
 万が一、即時かつ強制的に全セッションを遮断する必要がある重大なインシデントが発生した場合は、Redis のキャッシュをフラッシュしてください。
 
 ```bash
+cd deploy
 docker-compose exec redis redis-cli FLUSHALL
 ```
