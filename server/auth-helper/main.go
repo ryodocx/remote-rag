@@ -7,6 +7,7 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -14,32 +15,115 @@ import (
 	"net/url"
 	"os"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/redis/go-redis/v9"
 )
 
+// Cache interface abstracts the underlying caching mechanism.
+type Cache interface {
+	Get(ctx context.Context, key string) (string, error)
+	Set(ctx context.Context, key string, value string, ttl time.Duration) error
+}
+
+var ErrCacheMiss = errors.New("cache miss")
+
+// ---------------------------------------------------------
+// RedisCache Implementation
+// ---------------------------------------------------------
+type RedisCache struct {
+	client *redis.Client
+}
+
+func NewRedisCache(host, port string) *RedisCache {
+	if host == "" {
+		host = "localhost"
+	}
+	if port == "" {
+		port = "6379"
+	}
+	client := redis.NewClient(&redis.Options{
+		Addr: fmt.Sprintf("%s:%s", host, port),
+	})
+	return &RedisCache{client: client}
+}
+
+func (r *RedisCache) Get(ctx context.Context, key string) (string, error) {
+	val, err := r.client.Get(ctx, key).Result()
+	if err == redis.Nil {
+		return "", ErrCacheMiss
+	}
+	return val, err
+}
+
+func (r *RedisCache) Set(ctx context.Context, key string, value string, ttl time.Duration) error {
+	return r.client.Set(ctx, key, value, ttl).Err()
+}
+
+// ---------------------------------------------------------
+// MemoryCache Implementation
+// ---------------------------------------------------------
+type memoryItem struct {
+	value  string
+	expiry time.Time
+}
+
+type MemoryCache struct {
+	mu    sync.RWMutex
+	items map[string]memoryItem
+}
+
+func NewMemoryCache() *MemoryCache {
+	return &MemoryCache{
+		items: make(map[string]memoryItem),
+	}
+}
+
+func (m *MemoryCache) Get(ctx context.Context, key string) (string, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	item, found := m.items[key]
+	if !found {
+		return "", ErrCacheMiss
+	}
+	if time.Now().After(item.expiry) {
+		return "", ErrCacheMiss
+	}
+	return item.value, nil
+}
+
+func (m *MemoryCache) Set(ctx context.Context, key string, value string, ttl time.Duration) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.items[key] = memoryItem{
+		value:  value,
+		expiry: time.Now().Add(ttl),
+	}
+	return nil
+}
+
+// ---------------------------------------------------------
+// Main Application
+// ---------------------------------------------------------
+
 var (
-	redisClient      *redis.Client
+	cacheInstance      Cache
 	oauthIntrospectURL string
 	oauthClientID      string
 	oauthClientSecret  string
-	ctx              = context.Background()
+	ctx                = context.Background()
 )
 
 func init() {
-	redisHost := os.Getenv("REDIS_HOST")
-	if redisHost == "" {
-		redisHost = "localhost"
+	cacheType := os.Getenv("CACHE_TYPE")
+	if cacheType == "memory" {
+		log.Println("Using In-Memory Cache")
+		cacheInstance = NewMemoryCache()
+	} else {
+		log.Println("Using Redis Cache")
+		cacheInstance = NewRedisCache(os.Getenv("REDIS_HOST"), os.Getenv("REDIS_PORT"))
 	}
-	redisPort := os.Getenv("REDIS_PORT")
-	if redisPort == "" {
-		redisPort = "6379"
-	}
-
-	redisClient = redis.NewClient(&redis.Options{
-		Addr: fmt.Sprintf("%s:%s", redisHost, redisPort),
-	})
 
 	oauthIntrospectURL = os.Getenv("OAUTH_INTROSPECT_URL")
 	oauthClientID = os.Getenv("OAUTH_CLIENT_ID")
@@ -116,8 +200,8 @@ func authHandler(w http.ResponseWriter, r *http.Request) {
 
 	tokenHash := hashToken(token)
 
-	// Check Redis cache
-	val, err := redisClient.Get(ctx, tokenHash).Result()
+	// Check cache
+	val, err := cacheInstance.Get(ctx, tokenHash)
 	if err == nil && val == "valid" {
 		w.WriteHeader(http.StatusOK)
 		return
@@ -133,7 +217,7 @@ func authHandler(w http.ResponseWriter, r *http.Request) {
 
 	if active {
 		// Cache for 60 seconds
-		redisClient.Set(ctx, tokenHash, "valid", 60*time.Second)
+		cacheInstance.Set(ctx, tokenHash, "valid", 60*time.Second)
 		w.WriteHeader(http.StatusOK)
 		return
 	}
