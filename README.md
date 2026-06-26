@@ -81,15 +81,29 @@ AIエージェントに複雑な認証ロジックを持たせることなく、
 
 ## 🧩 アーキテクチャ構成図 (簡易版)
 
-ローカル側のBridge CLIがトークン管理と通信の中継を行い、サーバー側のCaddy+Auth Helperが認証の関所として機能します。
-（より詳細な連携フローやシーケンス図は、**[アーキテクチャ設計書](docs/ARCHITECTURE.md)** をご覧ください）
+ローカル側のBridge CLIがトークン取得を自動化し、サーバー側のCaddy+Auth Helperが**「認証の関所」**として機能します。これにより、MCPサーバー自身は認証ロジックを一切持たず、安全なRAG検索のみに専念できます。
+（より詳細なシーケンス図等は、**[アーキテクチャ設計書](docs/ARCHITECTURE.md)** をご覧ください）
 
 ```mermaid
-graph LR
-    Agent[AI Agent] -->|stdio| Bridge[Bridge CLI]
-    Bridge -->|HTTPS + Token| Caddy[Proxy + Auth]
-    Caddy --> MCPServer[MCP Server]
-    MCPServer <--> LanceDB[(Vector DB)]
+graph TD
+    %% クライアント層
+    Agent[AIエージェント<br/>Cursor, Claude等] -->|1. stdio接続| Bridge[Bridge CLI<br/>トークン自動取得・更新]
+    
+    %% ネットワーク・プロキシ層
+    Bridge ==>|2. HTTPS通信<br/>Bearerトークン付与| Proxy[Caddy + Auth Helper<br/>🔒 認証・プロキシ層]
+    
+    %% 外部認可サーバー
+    IdP((認可サーバー<br/>Okta, Auth0 等))
+    Proxy -.->|3. トークン有効性検証<br/>Introspection| IdP
+    
+    %% アプリケーション層 (保護された領域)
+    Proxy -->|4. 検証成功時のみ通過| MCPServer[MCP Server<br/>RAGエンジン]
+    MCPServer <--> LanceDB[(LanceDB)]
+
+    %% 強調スタイル
+    style Proxy fill:#ffe6e6,stroke:#ff4d4d,stroke-width:3px
+    style Bridge fill:#e6f3ff,stroke:#4da6ff,stroke-width:2px
+    style MCPServer fill:#f9f9f9,stroke:#cccccc,stroke-dasharray: 5 5
 ```
 
 ---
