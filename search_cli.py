@@ -1,10 +1,15 @@
 import argparse
 import sys
+from src.utils.logging_config import setup_logging
 from src.mcp_server.searcher import WikiSearcher
 
 def main():
     if sys.stdout.encoding != 'utf-8':
         sys.stdout.reconfigure(encoding='utf-8')
+    
+    # エントリーポイントでのみロギングを設定
+    setup_logging()
+    
     parser = argparse.ArgumentParser(description="Search LanceDB Wiki RAG directly")
     parser.add_argument("queries", type=str, nargs='+', help="The search queries (one or more)")
     parser.add_argument("--limit", type=int, default=5, help="Number of results to return")
@@ -55,6 +60,7 @@ def main():
             
     except Exception as e:
         print(f"Error during search: {e}", file=sys.stderr)
+        sys.exit(1)
 
 if __name__ == "__main__":
     main()
