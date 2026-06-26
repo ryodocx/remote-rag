@@ -21,7 +21,11 @@ class QuantizedSentenceTransformerEmbeddings(TextEmbeddingFunction):
     
     def ndims(self):
         if self._ndims is None:
-            self._ndims = len(self.generate_embeddings(["test"])[0])
+            env_dim = os.environ.get("VECTOR_DIM", "768")
+            if env_dim:
+                self._ndims = int(env_dim)
+            else:
+                self._ndims = len(self.generate_embeddings(["test"])[0])
         return self._ndims
 
     def compute_source_embeddings(self, texts: list[str], *args, **kwargs):
@@ -74,3 +78,4 @@ class WikiChunk(LanceModel):
     vector: Vector(embed_func.ndims()) = embed_func.VectorField() # type: ignore
     title: str
     url: str
+    metadata: str = "{}" # JSON文字列形式のメタデータ（検索やフィルタ用）

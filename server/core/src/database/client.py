@@ -105,8 +105,25 @@ class DatabaseClient:
         データの追加・削除の後に実行することで検索品質を維持します。
         """
         logger.info("Creating/Replacing FTS index...")
-        self.table.create_fts_index("text", replace=True)
+        self.table.create_fts_index(["text", "metadata"], replace=True)
         logger.info("FTS index creation completed.")
+
+    def get_chunks_by_page(self, page_id: str):
+        """
+        特定のページIDに紐づく全チャンクを取得します。
+        
+        Args:
+            page_id (str): 取得対象となるページID。
+            
+        Returns:
+            list[dict]: チャンクのリスト。
+        """
+        try:
+            safe_page_id = page_id.replace("'", "''")
+            return self.table.search().where(f"page_id = '{safe_page_id}'").limit(1000).to_list()
+        except Exception as e:
+            logger.error(f"Failed to get chunks for page {page_id}: {e}")
+            return []
 
     def optimize(self):
         """
@@ -120,7 +137,7 @@ class DatabaseClient:
         self.create_fts_index()
         logger.info("All optimization tasks completed successfully.")
 
-    def search(self, query: str, limit: int = 5, search_type: str = "hybrid"):
+    def search(self, query: str, limit: int = 5, search_type: str = "hybrid", where: str = None):
         """
         与えられたクエリに対して、ベクトル検索、FTS検索、またはハイブリッド検索を実行します。
         ハイブリッド検索が内部エラーで失敗した場合は、自動的にベクトル検索へフォールバックします。
@@ -129,6 +146,7 @@ class DatabaseClient:
             query (str): 検索する文字列。
             limit (int): 取得する検索結果の最大件数（デフォルト: 5）。
             search_type (str): 検索手法（'hybrid', 'fts', 'vector' のいずれか）。
+            where (str): メタデータ等で絞り込むためのSQL WHERE句。
             
         Returns:
             list[dict]: 検索結果の辞書リスト。
@@ -137,17 +155,31 @@ class DatabaseClient:
             Exception: フォールバックも含め全ての検索手法が失敗した場合。
         """
         try:
+            if not query or query.strip() == "":
+                # クエリが無い場合は単なるWHERE句でのメタデータフィルタリング
+                q = self.table.search()
+                if where:
+                    q = q.where(where)
+                return q.limit(limit).to_list()
+
             if search_type == "hybrid":
                 # チャンク生成時のテキストに対してハイブリッド検索を行い、Rerankerで関連性を再計算
                 q = self.table.search(query, query_type="hybrid")
+                if where:
+                    q = q.where(where)
                 if self.reranker:
                     q = q.rerank(reranker=self.reranker)
                 results = q.limit(limit).to_list()
             elif search_type == "fts":
-                results = self.table.search(query, query_type="fts").limit(limit).to_list()
+                q = self.table.search(query, query_type="fts")
+                if where:
+                    q = q.where(where)
+                results = q.limit(limit).to_list()
             else:
                 # search_type == "vector"
                 q = self.table.search(query, query_type="vector")
+                if where:
+                    q = q.where(where)
                 if self.reranker:
                     q = q.rerank(reranker=self.reranker)
                 results = q.limit(limit).to_list()
@@ -160,10 +192,15 @@ class DatabaseClient:
             logger.warning(f"Hybrid search failed, falling back to vector search. Error: {e}")
             try:
                 q = self.table.search(query, query_type="vector")
+                if where:
+                    q = q.where(where)
                 if self.reranker:
                     q = q.rerank(reranker=self.reranker)
                 results = q.limit(limit).to_list()
             except Exception as inner_e:
                 logger.error(f"Vector search fallback with reranker also failed: {inner_e}. Falling back to pure vector search.")
-                results = self.table.search(query, query_type="vector").limit(limit).to_list()
+                q = self.table.search(query, query_type="vector")
+                if where:
+                    q = q.where(where)
+                results = q.limit(limit).to_list()
         return results
