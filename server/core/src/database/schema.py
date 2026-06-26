@@ -13,6 +13,14 @@ EMBEDDING_PREFIX_PASSAGE = os.environ.get("EMBEDDING_PREFIX_PASSAGE", "passage: 
 
 registry = EmbeddingFunctionRegistry.get_instance()
 
+KNOWN_DIMENSIONS = {
+    "intfloat/multilingual-e5-base": 768,
+    "intfloat/multilingual-e5-small": 384,
+    "BAAI/bge-m3": 1024,
+    "pkshatech/GLuCoSE-base-ja": 768,
+    "sentence-transformers/paraphrase-multilingual-mpnet-base-v2": 768,
+}
+
 @registry.register("quantized-sentence-transformers")
 class QuantizedSentenceTransformerEmbeddings(TextEmbeddingFunction):
     name: str = EMBEDDING_MODEL
@@ -21,10 +29,14 @@ class QuantizedSentenceTransformerEmbeddings(TextEmbeddingFunction):
     
     def ndims(self):
         if self._ndims is None:
-            env_dim = os.environ.get("VECTOR_DIM", "768")
+            env_dim = os.environ.get("VECTOR_DIM")
             if env_dim:
                 self._ndims = int(env_dim)
+            elif self.name in KNOWN_DIMENSIONS:
+                self._ndims = KNOWN_DIMENSIONS[self.name]
             else:
+                import logging
+                logging.getLogger(__name__).warning(f"VECTOR_DIM is not set and model '{self.name}' is unknown. Loading model to determine dimensions, which slows down startup.")
                 self._ndims = len(self.generate_embeddings(["test"])[0])
         return self._ndims
 
