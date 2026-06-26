@@ -85,7 +85,7 @@ AIエージェントに複雑な認証ロジックを持たせることなく、
 （より詳細なシーケンス図等は、**[アーキテクチャ設計書](docs/ARCHITECTURE.md)** をご覧ください）
 
 ```mermaid
-graph TD
+graph LR
     %% クライアント層
     Agent[AIエージェント<br/>Cursor, Claude等] -->|1. stdio接続| Bridge[Bridge CLI<br/>トークン自動取得・更新]
     
