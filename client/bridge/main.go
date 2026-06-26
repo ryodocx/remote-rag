@@ -103,6 +103,7 @@ func main() {
 	}()
 
 	// 4. 親プロセスからの標準入力 (stdin) を読み取り、リモートMCPへPOST送信
+	postClient := &http.Client{Timeout: 30 * time.Second}
 	scanner := bufio.NewScanner(os.Stdin)
 	for scanner.Scan() {
 		msg := scanner.Text()
@@ -127,7 +128,6 @@ func main() {
 		postReq.Header.Set("Authorization", "Bearer "+token)
 		postReq.Header.Set("Content-Type", "application/json")
 
-		postClient := &http.Client{Timeout: 30 * time.Second}
 		postResp, err := postClient.Do(postReq)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "POST to MCP failed: %v\n", err)
