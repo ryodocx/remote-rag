@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   rag-app:
     build: .
@@ -8,7 +6,7 @@ services:
       # マウント設定: ホスト側のデータをコンテナに引き継ぐ
       - ./data:/app/data
       # HuggingFaceのモデルダウンロードキャッシュをホストと共有（起動ごとの再ダウンロード防止）
-      - huggingface_cache:/root/.cache/huggingface
+      - huggingface_cache:/home/appuser/.cache/huggingface
     # インタラクティブなCLI実行やMCPサーバーとしての実行を可能にする設定
     stdin_open: true
     tty: true

@@ -12,12 +12,16 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy the source code
-COPY src/ src/
-COPY search_cli.py .
+# Create a non-root user and set up data directory
+RUN useradd -m appuser && \
+    mkdir -p /app/data && \
+    chown -R appuser:appuser /app
 
-# Ensure data directory exists
-RUN mkdir -p /app/data
+USER appuser
+
+# Copy the source code with correct ownership
+COPY --chown=appuser:appuser src/ src/
+COPY --chown=appuser:appuser search_cli.py .
 
 # By default, drop into a bash shell so users can run CLI, ingestion, or the MCP server
 CMD ["bash"]
