@@ -1,3 +1,15 @@
+# Remote RAG MCP Server & Auth Proxy
+
+このリポジトリは、社内ナレッジベース（Wikipedia等）を検索するためのRAGエンジンを、Model Context Protocol (MCP) を通じてAIエージェント（Cursor, Claude Desktop等）に提供するための基盤です。汎用的な OAuth 2.0 / OIDC 認証とプロキシ機構を統合し、安全なアクセスを実現しています。
+
+## 📚 ドキュメント (Documentation)
+
+アーキテクチャや運用手順に関する詳細な資料は `docs/` ディレクトリを参照してください。
+
+- **[アーキテクチャ設計書 (ARCHITECTURE.md)](docs/ARCHITECTURE.md)**: システム全体の構成図、Caddy・Auth Helper・Bridgeの役割と連携フロー。
+- **[運用手順書 (OPERATIONS.md)](docs/OPERATIONS.md)**: 環境変数の設定方法、デプロイ手順、トラブルシューティング、セキュリティ上の注意点。
+- **[開発者ガイド (DEVELOPMENT.md)](docs/DEVELOPMENT.md)**: ブリッジのクロスコンパイル手法（Homebrew配布等）やローカル開発環境の構築方法。
+
 # Remote RAG (WikiSearcher)
 
 Wikipediaのデータからテキストチャンクをベクトル化し、LanceDBを用いたハイブリッド検索（フルテキスト検索 + ベクトル検索）と、CrossEncoder（Reranker）を用いた高度な再評価を提供するRAGエンジンです。
