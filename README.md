@@ -2,6 +2,12 @@
   <h1>🚀 Remote RAG MCP Server & Auth Proxy</h1>
   <p><strong>エンタープライズの社内ナレッジを、AIエージェントに安全に接続する架け橋</strong></p>
 
+  <p>
+    <b>🛡️ 堅牢なセキュリティ (OAuth 2.0)</b> &nbsp;•&nbsp; 
+    <b>🎯 圧倒的な検索精度 (Hybrid RAG)</b> &nbsp;•&nbsp; 
+    <b>🔌 シームレスなAI連携 (MCP)</b>
+  </p>
+
   [![Docker](https://img.shields.io/badge/docker-%230db7ed.svg?style=flat&logo=docker&logoColor=white)](#)
   [![Python](https://img.shields.io/badge/python-3.11+-blue.svg)](#)
   [![Go](https://img.shields.io/badge/go-1.21+-00ADD8.svg)](#)
@@ -14,6 +20,11 @@
 社内ナレッジベース（社内Wikiや機密文書等）を検索するための高精度な**RAG（検索拡張生成）エンジン**を、[Model Context Protocol (MCP)](https://modelcontextprotocol.io/) を通じてAIエージェント（Cursor, Claude Desktop等）に提供するエンタープライズ向け基盤です。
 
 単なる検索サーバーにとどまらず、**汎用的な OAuth 2.0 / OIDC 認証**とプロキシ機構を統合し、セキュアなネットワーク越しのアクセスを標準でサポートしています。
+
+### 🌟 本プロジェクトがもたらす3つの価値
+1. **脱・固定クレデンシャル**: 漏洩リスクの高いAPIキー管理から解放され、全社標準のIdP（Okta等）を用いた安全なアクセス管理を実現します。
+2. **AIの文脈理解を底上げする精度**: ベクトル×FTSのハイブリッド検索とRerankerの再評価により、「AIが的外れな社内情報を参照する」課題を解決します。
+3. **インフラを問わない接続性**: クライアントPCとリモートサーバー間を意識させない透過的なブリッジにより、場所を問わず安全なAI活用環境を提供します。
 
 ---
 
