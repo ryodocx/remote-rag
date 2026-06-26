@@ -27,7 +27,7 @@ class WikiSearcher:
         self.max_tokens = max_tokens
         logger.debug(f"WikiSearcher initialized with max_tokens={max_tokens}")
 
-    def search(self, query: str, limit: int = 5, search_type: str = "hybrid") -> list[dict]:
+    def search(self, query: str, limit: int = 5, search_type: str = "hybrid", where: str = None) -> list[dict]:
         """
         クエリを用いて検索を実行し、ノイズとなる低スコアのチャンクを除外した上で、
         トークン数上限に収まるように結果をフィルタリングして返します。
@@ -36,13 +36,14 @@ class WikiSearcher:
             query (str): 検索する文字列。
             limit (int): 取得を試みる初期の最大検索結果件数（デフォルト: 5）。
             search_type (str): 検索手法（デフォルト: 'hybrid'）。
+            where (str): SQL WHERE句による絞り込み。
             
         Returns:
             list[dict]: フィルタリングされた、LLMへ渡すのに適した検索結果のリスト。
         """
-        logger.info(f"Executing search for query: '{query}' (type: {search_type}, limit: {limit})")
+        logger.info(f"Executing search for query: '{query}' (type: {search_type}, limit: {limit}, where: {where})")
         # DBから検索結果を取得（ハイブリッド検索またはベクトル検索）
-        raw_results = self.db_client.search(query, limit=limit, search_type=search_type)
+        raw_results = self.db_client.search(query, limit=limit, search_type=search_type, where=where)
         
         filtered_results = []
         current_tokens = 0
@@ -89,3 +90,59 @@ class WikiSearcher:
             
         logger.info(f"Search complete. Returning {len(filtered_results)} chunks (total tokens: {current_tokens}).")
         return filtered_results
+
+    def read_page(self, page_id: str) -> str:
+        """
+        指定されたページIDの全てのチャンクを取得し、結合して返します。
+        """
+        chunks = self.db_client.get_chunks_by_page(page_id)
+        if not chunks:
+            return ""
+        
+        # チャンクをテキストで結合
+        text_parts = []
+        title = chunks[0].get("title", "")
+        url = chunks[0].get("url", "")
+        
+        for c in chunks:
+            text_parts.append(c.get("text", ""))
+            
+        full_text = "\n\n".join(text_parts)
+        
+        if tokens > self.max_tokens:
+            logger.warning(f"Page {page_id} exceeds token limit ({tokens} > {self.max_tokens}).")
+            # トークン数超過時は警告文を追加
+            return f"Title: {title}\nURL: {url}\n\n[WARNING: Document is very long ({tokens} tokens) and may exceed context limits.]\n\n{full_text}"
+            
+        return f"Title: {title}\nURL: {url}\n\n{full_text}"
+
+    def list_pages(self, limit: int = 50) -> list[dict]:
+        """
+        データベース内に存在するユニークなページ（ドキュメント）のリストを取得します。
+        
+        Args:
+            limit (int): 取得する最大ページ数
+            
+        Returns:
+            list[dict]: page_id, title, url を含む辞書のリスト
+        """
+        try:
+            # LanceDBでは単純なDISTINCTが難しいため、多めに取得してメモリ上でユニーク化する
+            chunks = self.db_client.table.search().limit(limit * 20).to_list()
+            seen_pages = set()
+            pages = []
+            for c in chunks:
+                page_id = c.get("page_id")
+                if page_id not in seen_pages:
+                    seen_pages.add(page_id)
+                    pages.append({
+                        "page_id": page_id,
+                        "title": c.get("title", ""),
+                        "url": c.get("url", "")
+                    })
+                    if len(pages) >= limit:
+                        break
+            return pages
+        except Exception as e:
+            logger.error(f"Failed to list pages: {e}")
+            return []

@@ -23,7 +23,7 @@ def _get_searcher():
     return _searcher
 
 @mcp.tool()
-def search_wiki(query: str, limit: int = 5) -> str:
+def search_wiki(query: str, limit: int = 5, metadata_filter: str = None) -> str:
     """
     社内ナレッジベース（Wikipediaデータ）から、指定されたクエリに関連する情報を検索します。
     ハイブリッド検索（ベクトル＋キーワード）とRerankerを組み合わせた高精度な検索を実行し、
@@ -32,9 +32,11 @@ def search_wiki(query: str, limit: int = 5) -> str:
     Args:
         query: 検索クエリ文字列。自然言語での質問や、単語の羅列などを指定します。
         limit: 取得したい最大件数。デフォルトは5件。
+        metadata_filter: オプション。メタデータ（JSON）での絞り込み文字列 (例: '"category": "IT"')
     """
     searcher = _get_searcher()
-    results = searcher.search(query, limit=limit)
+    where_clause = f"metadata LIKE '%{metadata_filter}%'" if metadata_filter else None
+    results = searcher.search(query, limit=limit, where=where_clause)
     
     if not results:
         return "No relevant information found in the Wiki."
@@ -52,6 +54,65 @@ def search_wiki(query: str, limit: int = 5) -> str:
         formatted.append(f"### {res['title']}\n- URL: {res['url']}\n{score_text}- Content:\n{res['text']}")
         
     return "\n\n".join(formatted)
+
+@mcp.tool()
+def read_wiki_page(page_id: str) -> str:
+    """
+    指定されたページID（WikiのID等）から文書全体を読み込みます。
+    
+    Args:
+        page_id: 取得したいページのID文字列。
+    """
+    searcher = _get_searcher()
+    content = searcher.read_page(page_id)
+    if not content:
+        return f"No document found for page_id: {page_id}"
+    return content
+
+@mcp.tool()
+def search_by_metadata(key: str, value: str, limit: int = 5) -> str:
+    """
+    メタデータの Key:Value に完全一致する文書を検索します。
+    
+    Args:
+        key: メタデータのキー（例: "category"）
+        value: メタデータの値（例: "IT"）
+        limit: 取得したい最大件数。デフォルトは5件。
+    """
+    searcher = _get_searcher()
+    where_clause = f"metadata LIKE '%\"{key}\": \"{value}\"%'"
+    results = searcher.search(query="", limit=limit, search_type="fts", where=where_clause)
+    
+    if not results:
+        return f"No document found for metadata {key}:{value}."
+        
+    formatted = []
+    for i, res in enumerate(results, 1):
+        formatted.append(f"### {res['title']}\n- URL: {res['url']}\n- Content Snippet:\n{res['text'][:300]}...")
+        
+    return "\n\n".join(formatted)
+
+@mcp.tool()
+def list_wiki_pages(limit: int = 50) -> str:
+    """
+    社内ナレッジベース（Wikipediaデータ）に存在するページの一覧を取得します。
+    どのようなドキュメントが存在するか把握したい場合や、要約・全件取得のための
+    page_id を探す際に使用します。
+    
+    Args:
+        limit: 取得したい最大件数。デフォルトは50件。
+    """
+    searcher = _get_searcher()
+    pages = searcher.list_pages(limit=limit)
+    
+    if not pages:
+        return "No pages found in the database."
+        
+    formatted = ["### Available Pages"]
+    for i, p in enumerate(pages, 1):
+        formatted.append(f"{i}. **{p['title']}** (ID: `{p['page_id']}`) - {p['url']}")
+        
+    return "\n".join(formatted)
 
 if __name__ == "__main__":
     import argparse
