@@ -3,18 +3,8 @@ import sys
 import logging
 from typing import List, Optional
 from pydantic import BaseModel, Field
-from fastapi import FastAPI, HTTPException, BackgroundTasks, Security, Depends
-from fastapi.security.api_key import APIKeyHeader
-
-# API Key 設定
-API_KEY_NAME = "X-API-Key"
-api_key_header = APIKeyHeader(name=API_KEY_NAME, auto_error=False)
-
-def get_api_key(api_key_header: str = Security(api_key_header)):
-    expected_api_key = os.environ.get("INGEST_API_KEY", "default_secret_key")
-    if api_key_header == expected_api_key:
-        return api_key_header
-    raise HTTPException(status_code=403, detail="Could not validate API key")
+from fastapi import FastAPI, HTTPException, BackgroundTasks
+from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
 
 # srcモジュールへのパスを追加
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
@@ -22,11 +12,16 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
 from src.database.client import DatabaseClient
 from src.ingestion.chunker import chunk_markdown
 from src.utils.logging_config import setup_logging
+from src.utils.telemetry import setup_telemetry
 
 setup_logging()
 logger = logging.getLogger(__name__)
 
+# Setup OpenTelemetry
+setup_telemetry(service_name="rrag-ingest-api")
+
 app = FastAPI(title="RRAG Ingestion Webhook API")
+FastAPIInstrumentor.instrument_app(app)
 
 class IngestDocument(BaseModel):
     page_id: str
@@ -67,7 +62,7 @@ def background_ingest(documents: List[IngestDocument]):
         logger.error(f"Error during background ingestion: {e}")
 
 @app.post("/ingest")
-async def ingest_webhook(request: IngestRequest, background_tasks: BackgroundTasks, api_key: str = Depends(get_api_key)):
+async def ingest_webhook(request: IngestRequest, background_tasks: BackgroundTasks):
     """
     Webhook endpoint to receive documents from external systems (Airbyte, Dify, etc.)
     and ingest them into LanceDB asynchronously.
@@ -87,7 +82,7 @@ def background_optimize():
         logger.error(f"Error during background optimization: {e}")
 
 @app.post("/optimize")
-async def optimize_database(background_tasks: BackgroundTasks, api_key: str = Depends(get_api_key)):
+async def optimize_database(background_tasks: BackgroundTasks):
     """
     Endpoint to trigger database optimization and FTS index rebuild.
     """

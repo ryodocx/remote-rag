@@ -53,9 +53,9 @@ class WikiSearcher:
             score = result.get("_score")
             text = result.get("text", "")
             
-            # クエリが本文に完全一致（大文字小文字無視）で含まれているかチェック
+            # クエリが本文またはタイトルに完全一致（大文字小文字無視）で含まれているかチェック
             # マニアックな用語の検索時にスコアが低くても救済するためのロジック
-            is_exact_match = query.lower() in text.lower()
+            is_exact_match = query.lower() in text.lower() or query.lower() in result.get("title", "").lower()
             
             # 完全一致の場合は閾値を大幅に緩和、それ以外は厳格な閾値を適用
             threshold = EXACT_MATCH_RELEVANCE_THRESHOLD if is_exact_match else DEFAULT_RELEVANCE_THRESHOLD
@@ -108,6 +108,8 @@ class WikiSearcher:
             text_parts.append(c.get("text", ""))
             
         full_text = "\n\n".join(text_parts)
+        
+        tokens = count_tokens(full_text)
         
         if tokens > self.max_tokens:
             logger.warning(f"Page {page_id} exceeds token limit ({tokens} > {self.max_tokens}).")
