@@ -35,6 +35,8 @@ venv.bak/
 .history/
 .vscode/
 .idea/
+local_embedding_model/
+local_reranker_model/
 *.swp
 *.swo
 
