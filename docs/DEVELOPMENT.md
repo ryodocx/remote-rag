@@ -26,8 +26,9 @@ make build
 make build-all
 ```
 
-### Homebrew (Custom Tap) での配布について
-組織内で配布する場合、`make build-all` で生成したバイナリ（特に macOS 向けの `remote-rag-bridge-darwin-arm64` 等）をGitHub Releaseにアップロードし、社内用の Homebrew Tap リポジトリを作成してFormulaを定義することで、ユーザーは `brew install your-org/tap/remote-rag-bridge` で簡単に導入できます。
+### Homebrewでの配布について
+現在、GitHub Actions (`.github/workflows/release.yml`) を用いて、新しいバージョンタグがプッシュされると自動で各OS向けのバイナリがビルドされ、リポジトリ内の `Formula/rrag-bridge.rb` が更新されます。
+ユーザーは `brew tap ryodocx/remote-rag` で簡単にインストールできるようになっています。
 
 ## 3. 認証ヘルパー (Auth Helper) の開発
 

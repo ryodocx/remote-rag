@@ -1,6 +1,6 @@
 # AI Models Configuration Guide
 
-Remote RAG MCP Server では、テキストのベクトル化（Embedding）と検索結果の再評価（Reranker）に利用するAIモデルを、環境変数を通じて柔軟に切り替えることができます。
+RRAG MCP Server では、テキストのベクトル化（Embedding）と検索結果の再評価（Reranker）に利用するAIモデルを、環境変数を通じて柔軟に切り替えることができます。
 
 ## 設定方法
 `docker-compose.yml` 内の `environment` セクション、あるいは環境変数に以下の設定値を追加・上書きすることでモデルを変更できます。

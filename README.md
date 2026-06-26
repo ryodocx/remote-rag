@@ -1,5 +1,5 @@
 <div align="center">
-  <h1>🚀 Remote RAG MCP Server & Auth Proxy</h1>
+  <h1>🚀 RRAG (Remote RAG) MCP Server & Auth Proxy</h1>
   <p><strong>エンタープライズの社内ナレッジを、AIエージェントに安全に接続する架け橋</strong></p>
 
   <p>
@@ -48,7 +48,7 @@ AIエージェントの業務活用が進む中、「社内の機密データ（
 1. **認証・認可の壁**: リモートにある社内のMCPサーバーへアクセスするには、APIキーなどの固定クレデンシャルを各PCに配布するしかなく、漏洩リスクや管理コスト（ローテーションの手間）が課題でした。
 2. **検索精度の壁**: AIエージェントが複雑な日本語の文脈を理解し、社内の膨大なドキュメントの中から「本当に必要な数行」を見つけ出すには、高度なRAGアーキテクチャが必要でした。
 
-**Remote RAG MCP Server & Auth Proxy** は、これらの課題を同時に解決します。
+**RRAG MCP Server & Auth Proxy** は、これらの課題を同時に解決します。
 AIエージェントに複雑な認証ロジックを持たせることなく、企業で標準的に用いられる **OAuth 2.0 / OIDC**（OktaやAuth0等）を利用した安全なアクセスを実現し、最高峰のハイブリッド検索バックエンドを提供します。
 
 ---
@@ -74,7 +74,7 @@ AIエージェントに複雑な認証ロジックを持たせることなく、
 > 「社内の人工知能プロジェクトの歴史と、現在のステータスについて検索して教えて。」
 > 
 > **🤖 AIエージェント (Claude):**  
-> *(自動的に `remote-rag` のMCPツール `hybrid_search` を呼び出し)*  
+> *(自動的に `rrag` のMCPツール `hybrid_search` を呼び出し)*  
 > 「検索結果によると、社内の人工知能プロジェクトは2000年代以降のディープラーニングの登場を機に第三次ブームとして始まりました。直近の議事録（プロジェクトX）によれば、現在のステータスは...」
 
 ---
@@ -135,12 +135,20 @@ docker exec -it mcp-server python scripts/ingest_cli.py wiki --count 20
 ```
 *(※初回実行時は、各種AIモデルが自動でダウンロードされ、Dockerボリュームにキャッシュされます)*
 
-### 3. クライアント(Bridge)のビルド
-次に、AIエージェント（手元のPC）で動作するブリッジCLIをビルドします。
+### 3. クライアント(Bridge)のインストール
+次に、AIエージェント（手元のPC）で動作するブリッジCLIを用意します。
 
+**Homebrew を利用したインストール (macOS / Linux):**
+公式リポジトリのTapを利用して簡単にインストールできます。
 ```bash
-cd ../client/bridge
-go build -o remote-rag-bridge .
+brew tap ryodocx/remote-rag
+brew install rrag-bridge
+```
+
+**go install を利用したインストール:**
+Go言語環境がある場合は、ソースをcloneせずに直接インストール可能です。
+```bash
+go install github.com/ryodocx/remote-rag/client/bridge@latest
 ```
 
 ### 4. Claude Desktop / Cursor との連携
@@ -149,8 +157,8 @@ go build -o remote-rag-bridge .
 ```json
 {
   "mcpServers": {
-    "remote-rag": {
-      "command": "/絶対パス/remote-rag-bridge",
+    "rrag": {
+      "command": "/絶対パス/rrag-bridge",
       "args": ["--url", "https://<デプロイ先のドメイン>/sse"]
     }
   }
@@ -158,6 +166,43 @@ go build -o remote-rag-bridge .
 ```
 
 これで設定は完了です！
+
+---
+
+## 🔓 ローカルでの認証なし利用 (No-Auth Mode)
+
+社内ネットワーク等の安全な環境で、OAuthによる認証なしに手軽にテスト・運用を行いたい場合、以下の手順で認証をバイパスできます。
+
+### パターン1: サーバーを立ち上げて認証をモック化する
+Docker Composeで提供されるプロキシ群はそのまま利用しつつ、認証のみをパスさせたい場合は、`deploy/.env` ファイルの認証関連変数を**空**に設定します。
+これにより `auth-helper` はあらゆるBearerトークン（ダミーの文字列でも可）を「有効」として許可します。
+
+```env
+OAUTH_INTROSPECT_URL=
+OAUTH_CLIENT_ID=
+OAUTH_CLIENT_SECRET=
+```
+（※クライアントのBridge CLIからのリクエスト時には、ダミートークンでも接続が通ります）
+
+### パターン2: AIエージェントからRAGエンジンを直接呼び出す（最も手軽）
+ネットワーク越しのアクセス（CaddyやBridge CLI）が不要で、自PC内のデータを検索するだけの場合は、RAGエンジン本体（Python）を直接 `stdio` で実行するのが最も手軽です。
+
+**Claude Desktop / Cursor 設定例:**
+```json
+{
+  "mcpServers": {
+    "rrag-local": {
+      "command": "python",
+      "args": [
+        "/絶対パス/server/core/src/mcp_server/server.py",
+        "--transport",
+        "stdio"
+      ]
+    }
+  }
+}
+```
+*(※Python 3.11以上および `server/core/requirements.txt` のパッケージがPCにインストールされている必要があります)*
 
 ---
 
