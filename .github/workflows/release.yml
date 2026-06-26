@@ -1,0 +1,83 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.21'
+
+      - name: Build and Package Binaries
+        working-directory: client/bridge
+        run: |
+          make build-all
+          echo "Build completed."
+
+      - name: Extract Checksums
+        id: checksums
+        working-directory: client/bridge/dist
+        run: |
+          MAC_ARM64_SHA=$(grep "darwin-arm64.tar.gz" checksums.txt | cut -d ' ' -f 1)
+          LINUX_AMD64_SHA=$(grep "linux-amd64.tar.gz" checksums.txt | cut -d ' ' -f 1)
+          
+          echo "mac_arm64_sha=$MAC_ARM64_SHA" >> $GITHUB_OUTPUT
+          echo "linux_amd64_sha=$LINUX_AMD64_SHA" >> $GITHUB_OUTPUT
+
+      - name: Generate Homebrew Formula
+        run: |
+          VERSION=${GITHUB_REF#refs/tags/}
+          mkdir -p Formula
+          cat > Formula/rrag-bridge.rb <<EOF
+          class RragBridge < Formula
+            desc "Bridge CLI for Remote RAG MCP Server"
+            homepage "https://github.com/ryodocx/remote-rag"
+            version "${VERSION}"
+          
+            on_macos do
+              if Hardware::CPU.arm?
+                url "https://github.com/ryodocx/remote-rag/releases/download/${VERSION}/rrag-bridge-darwin-arm64.tar.gz"
+                sha256 "${{ steps.checksums.outputs.mac_arm64_sha }}"
+              end
+            end
+          
+            on_linux do
+              if Hardware::CPU.intel?
+                url "https://github.com/ryodocx/remote-rag/releases/download/${VERSION}/rrag-bridge-linux-amd64.tar.gz"
+                sha256 "${{ steps.checksums.outputs.linux_amd64_sha }}"
+              end
+            end
+          
+            def install
+              bin.install "rrag-bridge"
+            end
+          end
+          EOF
+
+      - name: Commit and Push Formula
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add Formula/rrag-bridge.rb
+          git commit -m "Update Homebrew formula for ${GITHUB_REF#refs/tags/} [skip ci]" || echo "No changes to commit"
+          # Push to the branch from which the tag was created (usually main)
+          git push origin HEAD:main
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: client/bridge/dist/*
+          generate_release_notes: true
