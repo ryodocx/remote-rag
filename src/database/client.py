@@ -27,7 +27,7 @@ class DatabaseClient:
         self.db = lancedb.connect(db_path)
         self.table_name = table_name
         self.table = self._get_or_create_table()
-        self._reranker = None
+        self._reranker_instance = None
 
     @property
     def reranker(self):
@@ -38,13 +38,27 @@ class DatabaseClient:
         Returns:
             CrossEncoderReranker: 検索結果再評価用のモデルインスタンス。
         """
-        if self._reranker is None:
-            logger.info("Loading CrossEncoder Reranker model...")
+        if self._reranker_instance is None:
+            logger.info("Loading CrossEncoder Reranker model with ONNX backend...")
             from lancedb.rerankers import CrossEncoderReranker
-            # 多言語対応の軽量クロスエンコーダーモデルを指定
-            self._reranker = CrossEncoderReranker(model_name="cross-encoder/mmarco-mMiniLMv2-L12-H384-v1")
-            logger.info("Reranker model loaded successfully.")
-        return self._reranker
+            from sentence_transformers import CrossEncoder
+            
+            self._reranker_instance = CrossEncoderReranker(
+                model_name="cross-encoder/mmarco-mMiniLMv2-L12-H384-v1",
+                column="text"
+            )
+            
+            # ONNXランタイムとINT8量子化を適用
+            self._reranker_instance._model = CrossEncoder(
+                self._reranker_instance.model_name,
+                device=self._reranker_instance.device,
+                trust_remote_code=self._reranker_instance.trust_remote_code,
+                backend="onnx",
+                model_kwargs={"file_name": "onnx/model_quint8_avx2.onnx"}
+            )
+            logger.info("Reranker model loaded with ONNX backend successfully.")
+                
+        return self._reranker_instance
 
     def _get_or_create_table(self):
         """
