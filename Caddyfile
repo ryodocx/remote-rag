@@ -1,0 +1,14 @@
+:8080 {
+    # 認証ヘルパーへリクエストを転送し、認証判定を行う
+    forward_auth auth-helper:8000 {
+        uri /auth
+    }
+
+    # 認証が通った場合、MCPサーバーへリバースプロキシ
+    reverse_proxy mcp-server:8000 {
+        header_up Host {host}
+        
+        # SSE (Server-Sent Events) 対応のため、バッファリングを完全に無効化する
+        flush_interval -1
+    }
+}

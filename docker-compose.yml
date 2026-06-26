@@ -1,16 +1,45 @@
 services:
-  rag-app:
+  mcp-server:
     build: .
-    container_name: remote-rag
+    container_name: mcp-server
     volumes:
       # マウント設定: ホスト側のデータをコンテナに引き継ぐ
       - ./data:/app/data
       # HuggingFaceのモデルダウンロードキャッシュをホストと共有（起動ごとの再ダウンロード防止）
       - huggingface_cache:/home/appuser/.cache/huggingface
-    # インタラクティブなCLI実行やMCPサーバーとしての実行を可能にする設定
-    stdin_open: true
-    tty: true
-    command: /bin/bash
+    command: python -m src.mcp_server.server --transport sse --host 0.0.0.0 --port 8000
+    environment:
+      - PYTHONUNBUFFERED=1
+
+  caddy:
+    image: caddy:2-alpine
+    container_name: caddy-proxy
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile
+    depends_on:
+      - auth-helper
+      - mcp-server
+
+  redis:
+    image: redis:7-alpine
+    container_name: redis-cache
+    ports:
+      - "6379:6379"
+
+  auth-helper:
+    build:
+      context: ./auth-helper
+    container_name: auth-helper
+    environment:
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - OAUTH_INTROSPECT_URL=${OAUTH_INTROSPECT_URL:-}
+      - OAUTH_CLIENT_ID=${OAUTH_CLIENT_ID:-}
+      - OAUTH_CLIENT_SECRET=${OAUTH_CLIENT_SECRET:-}
+    depends_on:
+      - redis
 
 volumes:
   huggingface_cache:
