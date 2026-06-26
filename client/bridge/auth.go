@@ -20,10 +20,11 @@ import (
 )
 
 const (
-	serviceName = "remote-rag-mcp"
-	accountName = "oauth-token"
+	serviceName = "remote-rag-mcp" // Keychainに保存する際のサービス名
+	accountName = "oauth-token"    // Keychainに保存する際のアカウント名
 )
 
+// TokenData はアクセストークンおよびリフレッシュトークンの情報を保持し、JSONとしてシリアライズしてKeychainに保存されます
 type TokenData struct {
 	AccessToken  string    `json:"access_token"`
 	RefreshToken string    `json:"refresh_token,omitempty"`
@@ -52,10 +53,11 @@ func getOAuth2Config() *oauth2.Config {
 			TokenURL: tokenURL,
 		},
 		Scopes: []string{"openid", "profile", "offline_access"},
-		// RedirectURL will be set dynamically based on the local listener port
+		// RedirectURL はローカルで待ち受ける一時的なHTTPサーバーのポートに合わせて動的に設定します
 	}
 }
 
+// generatePKCE は OAuth 2.0 PKCE (Proof Key for Code Exchange) フローに必要な Code Verifier と Code Challenge を生成します
 func generatePKCE() (verifier, challenge string, err error) {
 	b := make([]byte, 32)
 	if _, err := rand.Read(b); err != nil {
@@ -69,6 +71,7 @@ func generatePKCE() (verifier, challenge string, err error) {
 	return verifier, challenge, nil
 }
 
+// openBrowser は指定されたURLを、実行中のOSのデフォルトブラウザで開きます
 func openBrowser(url string) error {
 	var err error
 	switch runtime.GOOS {
@@ -84,6 +87,7 @@ func openBrowser(url string) error {
 	return err
 }
 
+// Authenticate はブラウザを開いて認可サーバーでユーザーを認証させ、コールバックを受け取ってアクセストークンを取得します
 func Authenticate() (string, error) {
 	fmt.Fprintf(os.Stderr, "Authenticating with Identity Provider...\n")
 	
@@ -93,6 +97,7 @@ func Authenticate() (string, error) {
 		return "", fmt.Errorf("failed to generate PKCE: %v", err)
 	}
 
+	// 空いているランダムなポートでローカルサーバーを起動します
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		return "", fmt.Errorf("failed to bind local port: %v", err)
@@ -157,6 +162,7 @@ func Authenticate() (string, error) {
 	}
 }
 
+// saveToken は取得したトークン情報をJSONにシリアライズし、OSネイティブのKeychainに暗号化して保存します
 func saveToken(tok *oauth2.Token) {
 	data := TokenData{
 		AccessToken:  tok.AccessToken,
@@ -174,10 +180,11 @@ func saveToken(tok *oauth2.Token) {
 	}
 }
 
+// GetValidToken はKeychainからトークンを取得し、有効期限を確認します。トークンが存在しないか期限切れの場合は再認証を促します。
 func GetValidToken() (string, error) {
 	secret, err := keyring.Get(serviceName, accountName)
 	if err != nil {
-		// Not found, authenticate
+		// Keychainにトークンが見つからない場合は新規認証を実行
 		return Authenticate()
 	}
 

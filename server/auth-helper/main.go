@@ -19,14 +19,15 @@ import (
 )
 
 var (
-	cacheInstance      Cache
-	oauthIntrospectURL string
-	oauthClientID      string
-	oauthClientSecret  string
-	ctx                = context.Background()
+	cacheInstance      Cache  // キャッシュインターフェースのインスタンス
+	oauthIntrospectURL string // OAuth2.0 Token Introspection エンドポイントのURL
+	oauthClientID      string // Introspection用のクライアントID (Basic認証用)
+	oauthClientSecret  string // Introspection用のクライアントシークレット (Basic認証用)
+	ctx                = context.Background() // グローバルなコンテキスト
 )
 
 func init() {
+	// 環境変数に基づいて使用するキャッシュ機構を決定します
 	cacheType := os.Getenv("CACHE_TYPE")
 	if cacheType == "memory" {
 		log.Println("Using In-Memory Cache")
@@ -36,6 +37,7 @@ func init() {
 		cacheInstance = NewRedisCache(os.Getenv("REDIS_HOST"), os.Getenv("REDIS_PORT"))
 	}
 
+	// Introspection用の設定を環境変数から取得します
 	oauthIntrospectURL = os.Getenv("OAUTH_INTROSPECT_URL")
 	oauthClientID = os.Getenv("OAUTH_CLIENT_ID")
 	oauthClientSecret = os.Getenv("OAUTH_CLIENT_SECRET")
@@ -45,19 +47,24 @@ func init() {
 	}
 }
 
+// hashToken は平文のトークンをSHA-256でハッシュ化し、16進数文字列を返します。
+// キャッシュにトークンをそのまま保存するセキュリティリスクを避けるために使用します。
 func hashToken(token string) string {
 	hasher := sha256.New()
 	hasher.Write([]byte(token))
 	return hex.EncodeToString(hasher.Sum(nil))
 }
 
+// introspectToken は RFC 7662 に基づき、認可サーバーに対してトークンのオンライン検証を行います。
+// 有効なトークンであれば true を、無効であれば false を返します。
 func introspectToken(token string) (bool, error) {
 	if oauthIntrospectURL == "" {
-		// Mock logic for local testing if env is not set
+		// 環境変数が未設定の場合はローカル開発用のモック動作とみなします
 		log.Println("Mocking introspection: Returning true")
 		return true, nil
 	}
 
+	// x-www-form-urlencoded 形式でパラメータを準備します
 	data := url.Values{}
 	data.Set("token", token)
 	data.Set("token_type_hint", "access_token")
@@ -96,10 +103,12 @@ func introspectToken(token string) (bool, error) {
 	return result.Active, nil
 }
 
+// authHandler は Caddy の forward_auth から呼び出される認証ハンドラです。
 func authHandler(w http.ResponseWriter, r *http.Request) {
+	// 1. AuthorizationヘッダーからBearerトークンを抽出
 	authHeader := r.Header.Get("Authorization")
 	if !strings.HasPrefix(authHeader, "Bearer ") {
-		w.WriteHeader(http.StatusUnauthorized)
+		w.WriteHeader(http.StatusUnauthorized) // トークンがない場合は即座に401を返す
 		return
 	}
 
@@ -109,16 +118,18 @@ func authHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// 2. トークンをハッシュ化して安全なキーを作成
 	tokenHash := hashToken(token)
 
-	// Check cache
+	// 3. キャッシュ（RedisまたはMemory）を参照
 	val, err := cacheInstance.Get(ctx, tokenHash)
 	if err == nil && val == "valid" {
+		// キャッシュヒット：トークンは有効であるため Caddy に 200 OK を返す
 		w.WriteHeader(http.StatusOK)
 		return
 	}
 
-	// Not in cache, validate online
+	// 4. キャッシュミス：認可サーバーへオンライン検証 (Introspection API) を実行
 	active, err := introspectToken(token)
 	if err != nil {
 		log.Printf("Error introspecting token: %v", err)
@@ -127,12 +138,13 @@ func authHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if active {
-		// Cache for 60 seconds
+		// 5. 検証成功：結果を60秒間キャッシュし、200 OK を返す
 		cacheInstance.Set(ctx, tokenHash, "valid", 60*time.Second)
 		w.WriteHeader(http.StatusOK)
 		return
 	}
 
+	// トークンが無効な場合
 	w.WriteHeader(http.StatusUnauthorized)
 }
 

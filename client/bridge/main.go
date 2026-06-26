@@ -14,17 +14,18 @@ import (
 func main() {
 	remoteURL := os.Getenv("MCP_REMOTE_URL")
 	if remoteURL == "" {
-		remoteURL = "http://localhost:8080" // Caddy proxy default
+		// 未指定時のデフォルトはCaddyのリバースプロキシ (ローカル環境向け)
+		remoteURL = "http://localhost:8080" 
 	}
 
-	// 1. Authenticate and get Token
+	// 1. 認証を実行し、アクセストークンを取得
 	token, err := GetValidToken()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to get auth token: %v\n", err)
 		os.Exit(1)
 	}
 
-	// 2. Connect to SSE Endpoint
+	// 2. リモートMCPサーバーのSSE (Server-Sent Events) エンドポイントへ接続
 	sseURL := remoteURL + "/sse"
 	req, err := http.NewRequest("GET", sseURL, nil)
 	if err != nil {
@@ -52,8 +53,8 @@ func main() {
 
 	fmt.Fprintf(os.Stderr, "Connected to remote MCP server.\n")
 
-	// 3. Read SSE events and write to Stdout
-	// Parse the POST endpoint from the 'endpoint' event.
+	// 3. SSEイベントを受信し、標準出力 (stdout) へ書き出す
+	// 初期接続時の 'endpoint' イベントから、後続のPOSTリクエスト先URLを解析・保持します
 	var postURL string
 	var currentEvent string
 
@@ -75,13 +76,13 @@ func main() {
 				data := bytes.TrimPrefix(line, []byte("data: "))
 				
 				if currentEvent == "endpoint" {
-					// The data contains the URI for the POST endpoint.
+					// データペイロードにはPOSTリクエスト用のURIが含まれています
 					endpointURI := string(data)
-					// If it's a relative path, append to remoteURL, else use as is
+					// 絶対パスか相対パスかを判定して完全なURLを構築
 					if strings.HasPrefix(endpointURI, "http") {
 						postURL = endpointURI
 					} else {
-						// Ensure trailing slash logic
+						// トレイリングスラッシュの重複を防ぐ処理
 						baseURL := strings.TrimSuffix(remoteURL, "/")
 						if !strings.HasPrefix(endpointURI, "/") {
 							endpointURI = "/" + endpointURI
@@ -90,18 +91,18 @@ func main() {
 					}
 					fmt.Fprintf(os.Stderr, "Established POST endpoint: %s\n", postURL)
 				} else {
-					// Forward JSON-RPC payload to stdio
+					// 'endpoint' 以外のデータ（主にメッセージ）は、JSON-RPCとして標準出力へそのまま転送
 					os.Stdout.Write(data)
 					os.Stdout.Write([]byte("\n"))
 				}
 			} else if len(line) == 0 {
-				// Empty line means end of event
+				// 空行はイベントチャンクの終了を意味します
 				currentEvent = ""
 			}
 		}
 	}()
 
-	// 4. Read from Stdin and POST to remote MCP
+	// 4. 親プロセスからの標準入力 (stdin) を読み取り、リモートMCPへPOST送信
 	scanner := bufio.NewScanner(os.Stdin)
 	for scanner.Scan() {
 		msg := scanner.Text()
@@ -109,6 +110,7 @@ func main() {
 			continue
 		}
 
+		// SSEからエンドポイント情報を受け取るまで待機
 		if postURL == "" {
 			fmt.Fprintf(os.Stderr, "Waiting for endpoint event before sending message...\n")
 			time.Sleep(1 * time.Second) // basic backoff if user types too fast

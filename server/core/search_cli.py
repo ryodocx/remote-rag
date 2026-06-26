@@ -4,10 +4,11 @@ from src.utils.logging_config import setup_logging
 from src.mcp_server.searcher import WikiSearcher
 
 def main():
+    # Windows環境等での文字化け対策 (標準出力をUTF-8に強制)
     if sys.stdout.encoding != 'utf-8':
         sys.stdout.reconfigure(encoding='utf-8')
     
-    # エントリーポイントでのみロギングを設定
+    # CLIエントリーポイントでのみロギングを設定 (モジュールインポート時の重複実行を防ぐ)
     setup_logging()
     
     parser = argparse.ArgumentParser(description="Search LanceDB Wiki RAG directly")
@@ -20,16 +21,20 @@ def main():
     args = parser.parse_args()
     
     try:
+        # 検索用クラスを初期化
         searcher = WikiSearcher(max_tokens=args.max_tokens)
         
+        # データ更新後などにFTS(フルテキスト検索)インデックスの再構築が必要な場合の処理
         if args.update_fts:
             print("Updating FTS index...")
             searcher.db_client.create_fts_index()
             print("FTS index updated.")
             
+        # 複数のクエリが指定された場合は順番に検索処理を実行
         for query in args.queries:
             print(f"Searching for: '{query}' (type: {args.search_type}, limit: {args.limit}, max_tokens: {args.max_tokens})")
             
+            # 指定された検索アルゴリズム(hybrid, vector, fts)で検索
             results = searcher.search(query, limit=args.limit, search_type=args.search_type)
             
             if not results:

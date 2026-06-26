@@ -10,17 +10,21 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
-// Cache interface abstracts the underlying caching mechanism.
+// Cache interface はバックエンドのキャッシュ機構（Redis、メモリ等）を抽象化します。
 type Cache interface {
+	// Get は指定したキーに対応する値をキャッシュから取得します。存在しない場合は ErrCacheMiss を返します。
 	Get(ctx context.Context, key string) (string, error)
+	// Set は指定したキーと値のペアをTTL（有効期限）付きでキャッシュに保存します。
 	Set(ctx context.Context, key string, value string, ttl time.Duration) error
 }
 
 var ErrCacheMiss = errors.New("cache miss")
 
 // ---------------------------------------------------------
-// RedisCache Implementation
+// RedisCache 実装
 // ---------------------------------------------------------
+
+// RedisCache は go-redis を用いて外部の Redis サーバーに接続するキャッシュ実装です。
 type RedisCache struct {
 	client *redis.Client
 }
@@ -51,13 +55,17 @@ func (r *RedisCache) Set(ctx context.Context, key string, value string, ttl time
 }
 
 // ---------------------------------------------------------
-// MemoryCache Implementation
+// MemoryCache 実装
 // ---------------------------------------------------------
+
+// memoryItem はインメモリキャッシュに保存する値と有効期限を保持する構造体です。
 type memoryItem struct {
 	value  string
 	expiry time.Time
 }
 
+// MemoryCache は Go の組み込みマップと RWMutex を利用した、スレッドセーフなインメモリキャッシュ実装です。
+// ローカルでのテストや、Redisコンテナを起動したくない軽量な環境での利用を想定しています。
 type MemoryCache struct {
 	mu    sync.RWMutex
 	items map[string]memoryItem

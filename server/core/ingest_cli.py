@@ -12,20 +12,22 @@ def main():
     setup_logging()
     
     parser = argparse.ArgumentParser(description="Ingest data into LanceDB")
+    # サブコマンド(wiki, dummy)で処理を分岐させるための設定
     subparsers = parser.add_subparsers(dest="command", help="Ingestion source type")
     
-    # Wikipedia Ingestion
+    # --- Wikipediaインジェスト用コマンドの定義 ---
     wiki_parser = subparsers.add_parser("wiki", help="Ingest Wikipedia articles")
     wiki_parser.add_argument("--count", type=int, default=20, help="Number of random articles to ingest")
     wiki_parser.add_argument("--sleep", type=float, default=2.0, help="Seconds to sleep between requests")
     wiki_parser.add_argument("--titles", type=str, nargs="+", help="Specific article titles to ingest (overrides --count)")
     
-    # Dummy Data Ingestion
+    # --- ダミーデータインジェスト用コマンドの定義 ---
     subparsers.add_parser("dummy", help="Ingest dummy markdown data from data/dummy")
     
     args = parser.parse_args()
     
     if args.command == "wiki":
+        # WikipediaのAPIを叩いて記事を取得し、チャンク分割してLanceDBへ保存
         print("Starting Wikipedia ingestion...")
         ingest_wikipedia_pages(
             count=args.count,
@@ -33,9 +35,11 @@ def main():
             specific_titles=args.titles
         )
     elif args.command == "dummy":
+        # ローカルのマークダウンファイル等のダミーデータを投入
         print("Starting Dummy data ingestion...")
         run_dummy_ingestion()
     else:
+        # 引数が不足している場合はヘルプを表示して終了
         parser.print_help()
         sys.exit(1)
 
