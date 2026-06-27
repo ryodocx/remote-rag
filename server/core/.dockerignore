@@ -1,0 +1,17 @@
+.git
+.venv
+.history
+data/
+scratch/
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+.eggs/
+*.egg
+.env
+.vscode/
+.idea/
+# Models
+models/
+tests/
