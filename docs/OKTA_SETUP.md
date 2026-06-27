@@ -26,11 +26,11 @@ OAUTH_JWKS_URL=https://{your-okta-domain}/oauth2/default/v1/keys
 ```
 
 ### パターンB: Introspection モード (オプション)
-Opaqueトークンを利用したい場合や、キャッシュベースの検証を行いたい場合はこちらのモードを利用します。この場合、Okta管理画面で「Web Application」を作成し、Client Secretを発行する必要があります。
+Opaqueトークンを利用したい場合や、キャッシュベースの検証を行いたい場合はこちらのモードを利用します。この場合、Okta管理画面で「API Services」アプリケーションを作成し、Client Secretを発行する必要があります。
 
 1. **Applications > Applications** に移動し、「**Create App Integration**」をクリック。
-2. **OIDC - OpenID Connect** > **Web Application** を選択。
-3. Grant type で **Client Credentials** をチェック。
+2. **API Services** を選択。
+3. アプリケーション名を入力して作成。
 4. アプリ作成後、**Client ID** と **Client Secret** を控えます。
 
 `deploy/.env` に以下のように設定します。
@@ -38,8 +38,8 @@ Opaqueトークンを利用したい場合や、キャッシュベースの検�
 ```env
 OAUTH_VALIDATION_MODE=introspect
 OAUTH_INTROSPECT_URL=https://{your-okta-domain}/oauth2/default/v1/introspect
-OAUTH_CLIENT_ID={Web App Client ID}
-OAUTH_CLIENT_SECRET={Web App Client Secret}
+OAUTH_CLIENT_ID={API Services App Client ID}
+OAUTH_CLIENT_SECRET={API Services App Client Secret}
 ```
 
 ---
