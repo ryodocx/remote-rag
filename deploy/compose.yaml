@@ -1,0 +1,70 @@
+services:
+  mcp-server:
+    build: ../server/core
+    container_name: mcp-server
+    volumes:
+      # マウント設定: ホスト側のデータをコンテナに引き継ぐ
+      - ../data:/app/data
+      # HuggingFaceのモデルダウンロードキャッシュをホストと共有（起動ごとの再ダウンロード防止）
+      - huggingface_cache:/home/appuser/.cache/huggingface
+    command: python -m src.mcp_server.server --transport sse --host 0.0.0.0 --port 8000
+    environment:
+      - PYTHONUNBUFFERED=1
+      - OTEL_EXPORTER_OTLP_ENDPOINT=${OTEL_EXPORTER_OTLP_ENDPOINT:-}
+    ports:
+      - "8002:8002" # Metrics
+
+  ingest-api:
+    build: ../server/core
+    container_name: ingest-api
+    volumes:
+      - ../data:/app/data
+      - huggingface_cache:/home/appuser/.cache/huggingface
+    command: uvicorn src.api.ingest_api:app --host 0.0.0.0 --port 8001
+    ports:
+      - "127.0.0.1:8001:8001"
+      - "8003:8002" # Metrics
+    environment:
+      - PYTHONUNBUFFERED=1
+      - OTEL_EXPORTER_OTLP_ENDPOINT=${OTEL_EXPORTER_OTLP_ENDPOINT:-}
+
+  caddy:
+    image: caddy:2-alpine
+    container_name: caddy-proxy
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile
+    environment:
+      - OTEL_EXPORTER_OTLP_ENDPOINT=${OTEL_EXPORTER_OTLP_ENDPOINT:-}
+    depends_on:
+      - auth-helper
+      - mcp-server
+
+  valkey:
+    image: valkey/valkey:8-alpine
+    container_name: valkey-cache
+
+  auth-helper:
+    build:
+      context: ../server/auth-helper
+    container_name: auth-helper
+    environment:
+      # CACHE_TYPE: redis or memory (Valkey is fully redis-compatible)
+      - CACHE_TYPE=redis
+      - REDIS_HOST=valkey
+      - REDIS_PORT=6379
+      - OAUTH_VALIDATION_MODE=${OAUTH_VALIDATION_MODE:-jwks}
+      - AUTH_INTROSPECT_CACHE_TTL_SECONDS=${AUTH_INTROSPECT_CACHE_TTL_SECONDS:-60}
+      - OAUTH_INTROSPECT_URL=${OAUTH_INTROSPECT_URL:-}
+      - OAUTH_CLIENT_ID=${OAUTH_CLIENT_ID:-}
+      - OAUTH_CLIENT_SECRET=${OAUTH_CLIENT_SECRET:-}
+      - OAUTH_JWKS_URL=${OAUTH_JWKS_URL:-}
+      - OTEL_EXPORTER_OTLP_ENDPOINT=${OTEL_EXPORTER_OTLP_ENDPOINT:-}
+    ports:
+      - "8001:8000" # Metrics / API
+    depends_on:
+      - valkey
+
+volumes:
+  huggingface_cache:
