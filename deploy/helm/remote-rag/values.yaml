@@ -35,6 +35,12 @@ mcpServer:
     repository: ghcr.io/ryodocx/remote-rag-core
     tag: latest
     pullPolicy: Always
+  env:
+    LANCEDB_PATH: ""
+    AWS_ACCESS_KEY_ID: ""
+    AWS_SECRET_ACCESS_KEY: ""
+    AWS_REGION: ""
+    AWS_ENDPOINT_URL_S3: ""
 
 ingestApi:
   image:
@@ -44,6 +50,12 @@ ingestApi:
   service:
     type: ClusterIP
     port: 8001
+  env:
+    LANCEDB_PATH: ""
+    AWS_ACCESS_KEY_ID: ""
+    AWS_SECRET_ACCESS_KEY: ""
+    AWS_REGION: ""
+    AWS_ENDPOINT_URL_S3: ""
 
 valkey:
   enabled: true
@@ -57,12 +69,12 @@ valkey:
 
 persistence:
   data:
-    enabled: true
+    enabled: false
     storageClass: ""
     accessMode: ReadWriteMany
     size: 10Gi
   huggingface:
-    enabled: true
+    enabled: false
     storageClass: ""
     accessMode: ReadWriteMany
     size: 10Gi

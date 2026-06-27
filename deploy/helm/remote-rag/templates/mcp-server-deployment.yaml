@@ -25,27 +25,33 @@ spec:
           env:
             - name: PYTHONUNBUFFERED
               value: "1"
+            {{- range $key, $value := .Values.mcpServer.env }}
+            {{- if $value }}
+            - name: {{ $key }}
+              value: {{ $value | quote }}
+            {{- end }}
+            {{- end }}
           ports:
             - name: http
               containerPort: 8000
               protocol: TCP
           volumeMounts:
+            {{- if .Values.persistence.data.enabled }}
             - name: data
               mountPath: /app/data
+            {{- end }}
+            {{- if .Values.persistence.huggingface.enabled }}
             - name: huggingface-cache
               mountPath: /home/appuser/.cache/huggingface
+            {{- end }}
       volumes:
+        {{- if .Values.persistence.data.enabled }}
         - name: data
-          {{- if .Values.persistence.data.enabled }}
           persistentVolumeClaim:
             claimName: {{ include "remote-rag.fullname" . }}-data
-          {{- else }}
-          emptyDir: {}
-          {{- end }}
+        {{- end }}
+        {{- if .Values.persistence.huggingface.enabled }}
         - name: huggingface-cache
-          {{- if .Values.persistence.huggingface.enabled }}
           persistentVolumeClaim:
             claimName: {{ include "remote-rag.fullname" . }}-huggingface
-          {{- else }}
-          emptyDir: {}
-          {{- end }}
+        {{- end }}
