@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "remote-rag.fullname" . }}-ingest-api
+  labels:
+    app.kubernetes.io/name: {{ include "remote-rag.name" . }}-ingest-api
+    app.kubernetes.io/instance: {{ .Release.Name }}
+spec:
+  type: {{ .Values.ingestApi.service.type }}
+  ports:
+    - port: {{ .Values.ingestApi.service.port }}
+      targetPort: http
+      protocol: TCP
+      name: http
+  selector:
+    app.kubernetes.io/name: {{ include "remote-rag.name" . }}-ingest-api
+    app.kubernetes.io/instance: {{ .Release.Name }}

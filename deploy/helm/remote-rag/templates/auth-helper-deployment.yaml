@@ -1,0 +1,46 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "remote-rag.fullname" . }}-auth-helper
+  labels:
+    app.kubernetes.io/name: {{ include "remote-rag.name" . }}-auth-helper
+    app.kubernetes.io/instance: {{ .Release.Name }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ include "remote-rag.name" . }}-auth-helper
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: {{ include "remote-rag.name" . }}-auth-helper
+        app.kubernetes.io/instance: {{ .Release.Name }}
+    spec:
+      containers:
+        - name: auth-helper
+          image: "{{ .Values.authHelper.image.repository }}:{{ .Values.authHelper.image.tag }}"
+          imagePullPolicy: {{ .Values.authHelper.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: 8000
+              protocol: TCP
+          env:
+            - name: CACHE_TYPE
+              value: "redis"
+            - name: REDIS_HOST
+              value: "{{ include "remote-rag.fullname" . }}-valkey"
+            - name: REDIS_PORT
+              value: "6379"
+            - name: OAUTH_VALIDATION_MODE
+              value: {{ .Values.authHelper.env.OAUTH_VALIDATION_MODE | quote }}
+            - name: AUTH_INTROSPECT_CACHE_TTL_SECONDS
+              value: {{ .Values.authHelper.env.AUTH_INTROSPECT_CACHE_TTL_SECONDS | quote }}
+            - name: OAUTH_JWKS_URL
+              value: {{ .Values.authHelper.env.OAUTH_JWKS_URL | quote }}
+            - name: OAUTH_INTROSPECT_URL
+              value: {{ .Values.authHelper.env.OAUTH_INTROSPECT_URL | quote }}
+            - name: OAUTH_CLIENT_ID
+              value: {{ .Values.authHelper.env.OAUTH_CLIENT_ID | quote }}
+            - name: OAUTH_CLIENT_SECRET
+              value: {{ .Values.authHelper.env.OAUTH_CLIENT_SECRET | quote }}

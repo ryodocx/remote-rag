@@ -1,0 +1,45 @@
+{{- if .Values.persistence.data.enabled -}}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "remote-rag.fullname" . }}-data
+  labels:
+    app.kubernetes.io/name: {{ include "remote-rag.name" . }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+spec:
+  accessModes:
+    - {{ .Values.persistence.data.accessMode | quote }}
+  resources:
+    requests:
+      storage: {{ .Values.persistence.data.size | quote }}
+{{- if .Values.persistence.data.storageClass }}
+{{- if (eq "-" .Values.persistence.data.storageClass) }}
+  storageClassName: ""
+{{- else }}
+  storageClassName: "{{ .Values.persistence.data.storageClass }}"
+{{- end }}
+{{- end }}
+{{- end }}
+---
+{{- if .Values.persistence.huggingface.enabled -}}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "remote-rag.fullname" . }}-huggingface
+  labels:
+    app.kubernetes.io/name: {{ include "remote-rag.name" . }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+spec:
+  accessModes:
+    - {{ .Values.persistence.huggingface.accessMode | quote }}
+  resources:
+    requests:
+      storage: {{ .Values.persistence.huggingface.size | quote }}
+{{- if .Values.persistence.huggingface.storageClass }}
+{{- if (eq "-" .Values.persistence.huggingface.storageClass) }}
+  storageClassName: ""
+{{- else }}
+  storageClassName: "{{ .Values.persistence.huggingface.storageClass }}"
+{{- end }}
+{{- end }}
+{{- end }}

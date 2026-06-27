@@ -1,0 +1,68 @@
+# Default values for remote-rag.
+global:
+  imagePullSecrets: []
+  nameOverride: ""
+  fullnameOverride: ""
+
+caddy:
+  enabled: true
+  image:
+    repository: caddy
+    tag: 2-alpine
+    pullPolicy: IfNotPresent
+  service:
+    type: ClusterIP
+    port: 8080
+
+authHelper:
+  image:
+    repository: ghcr.io/ryodocx/remote-rag-auth-helper
+    tag: latest
+    pullPolicy: Always
+  service:
+    type: ClusterIP
+    port: 8000
+  env:
+    OAUTH_VALIDATION_MODE: "jwks"
+    AUTH_INTROSPECT_CACHE_TTL_SECONDS: "60"
+    OAUTH_JWKS_URL: ""
+    OAUTH_INTROSPECT_URL: ""
+    OAUTH_CLIENT_ID: ""
+    OAUTH_CLIENT_SECRET: ""
+
+mcpServer:
+  image:
+    repository: ghcr.io/ryodocx/remote-rag-core
+    tag: latest
+    pullPolicy: Always
+
+ingestApi:
+  image:
+    repository: ghcr.io/ryodocx/remote-rag-core
+    tag: latest
+    pullPolicy: Always
+  service:
+    type: ClusterIP
+    port: 8001
+
+valkey:
+  enabled: true
+  image:
+    repository: valkey/valkey
+    tag: 8-alpine
+    pullPolicy: IfNotPresent
+  service:
+    type: ClusterIP
+    port: 6379
+
+persistence:
+  data:
+    enabled: true
+    storageClass: ""
+    accessMode: ReadWriteMany
+    size: 10Gi
+  huggingface:
+    enabled: true
+    storageClass: ""
+    accessMode: ReadWriteMany
+    size: 10Gi

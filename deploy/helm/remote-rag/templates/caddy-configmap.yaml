@@ -1,0 +1,39 @@
+{{- if .Values.caddy.enabled -}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "remote-rag.fullname" . }}-caddy
+  labels:
+    app.kubernetes.io/name: {{ include "remote-rag.name" . }}-caddy
+    app.kubernetes.io/instance: {{ .Release.Name }}
+data:
+  Caddyfile: |
+    {
+        servers {
+            metrics
+        }
+        tracing {
+            span rrag_proxy
+        }
+    }
+
+    :2019 {
+        metrics
+    }
+
+    :8080 {
+        forward_auth {{ include "remote-rag.fullname" . }}-auth-helper:8000 {
+            uri /auth
+        }
+
+        @root {
+            path /
+        }
+        rewrite @root /sse
+
+        reverse_proxy {{ include "remote-rag.fullname" . }}-mcp-server:8000 {
+            header_up Host {host}
+            flush_interval -1
+        }
+    }
+{{- end }}

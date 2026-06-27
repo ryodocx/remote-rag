@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "remote-rag.fullname" . }}-auth-helper
+  labels:
+    app.kubernetes.io/name: {{ include "remote-rag.name" . }}-auth-helper
+    app.kubernetes.io/instance: {{ .Release.Name }}
+spec:
+  type: {{ .Values.authHelper.service.type }}
+  ports:
+    - port: {{ .Values.authHelper.service.port }}
+      targetPort: http
+      protocol: TCP
+      name: http
+  selector:
+    app.kubernetes.io/name: {{ include "remote-rag.name" . }}-auth-helper
+    app.kubernetes.io/instance: {{ .Release.Name }}
