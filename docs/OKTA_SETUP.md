@@ -32,7 +32,11 @@ Opaqueトークンを利用せざるを得ない場合や、強制失効・キ�
 > **なぜOpaqueトークンを利用するのか？ (Okta特有の制約)**
 > OktaでJWKS検証が可能な「JWT形式のアクセストークン」を発行するには、Oktaの有償オプションである **API Access Management (Custom Authorization Server)** が必要です（例: `/oauth2/default` などのエンドポイント）。
 > 
-> もしこのオプションを契約しておらず、標準の **Org Authorization Server**（例: `/oauth2/v1/token` などのルートエンドポイント）を使用する場合、発行されるアクセストークンは必ず **Opaqueトークン（ランダムな文字列）** になります。OpaqueトークンはローカルでのJWKS署名検証が不可能なため、この「Introspection モード」を使用して Okta サーバーへ直接有効性を問い合わせる必要があります。
+> **※ オプション契約の有無の見分け方:**
+> 1. **管理画面での確認**: Okta管理画面で **Security > API** を開いた際、**「Authorization Servers」** というタブが存在し、そこに `default` などのサーバーがリストされていれば契約あり（JWKSモード利用可能）です。タブ自体が存在しない場合は未契約です。
+> 2. **トークン形式での確認**: 発行されたアクセストークンが `eyJ...` から始まるドット(`.`)区切りの文字列であれば JWT ですが、40文字程度のランダムな文字列であれば Opaqueトークン です。
+> 
+> もしこのオプションを契約しておらず、標準の **Org Authorization Server**（例: `/oauth2/v1/token` などのルートエンドポイント）を使用する場合、発行されるアクセストークンは必ず **Opaqueトークン** になります。OpaqueトークンはローカルでのJWKS署名検証が不可能なため、この「Introspection モード」を使用して Okta サーバーへ直接有効性を問い合わせる必要があります。
 
 1. **Applications > Applications** に移動し、「**Create App Integration**」をクリック。
 2. **API Services** を選択。
