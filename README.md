@@ -246,6 +246,7 @@ If you don't need network access and just want to search local data, run the Pyt
 | **[Operations Manual](docs/OPERATIONS.md)** | Server environment variables, deployment steps, and troubleshooting. |
 | **[Okta Setup Guide](docs/OKTA_SETUP.md)** | App registration and custom claims config for Okta (OAuth 2.0 / OIDC). |
 | **[GitLab Setup Guide](docs/GITLAB_SETUP.md)** | App registration and claim details for GitLab (gitlab.com / Self-hosted). |
+| **[AI Chat Web UI Integration](docs/WEBUI_INTEGRATION.md)** | How to integrate with ChatGPT, Claude, Gemini Web UIs and workarounds. |
 | **[AI Models Guide](docs/MODELS.md)** | How to swap Embedding/Reranker models, with comparisons for quality, speed, and memory usage. |
 | **[Development Guide](docs/DEVELOPMENT.md)** | Build instructions, local environments, and testing AI models. |
 
