@@ -20,3 +20,5 @@
 - 実装見直し
 - [ ] RABサーバの認証について、 https://github.com/ory/oathkeeper での置き換え、あるいは柔軟なフィルタ処理のためのOPAの導入を検討する。
 - [ ] localでのトークン管理について、https://github.com/int128/oauth2cli などの導入を検討
+- [ ] セッション中にトークン期限が切れた場合、能動的に切断する検討
+- [ ] EXACT_MATCH_RELEVANCE_THRESHOLD DEFAULT_RELEVANCE_THRESHOLD をカスタム可能にする
