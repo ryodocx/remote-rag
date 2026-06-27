@@ -246,6 +246,7 @@ OAUTH_CLIENT_SECRET=
 | **[アーキテクチャ設計書](docs/ARCHITECTURE.md)** | システム全体の構成図、各コンポーネントの役割と認証連携（PKCE）のシーケンス図。 |
 | **[運用手順書](docs/OPERATIONS.md)** | サーバー環境変数の設定、デプロイ手順、認証エラー等のトラブルシューティング。 |
 | **[Okta設定例](docs/OKTA_SETUP.md)** | Okta (OAuth 2.0 / OIDC) を認証基盤として利用する場合のアプリケーション登録と設定手順。 |
+| **[GitLab設定例](docs/GITLAB_SETUP.md)** | GitLab (gitlab.com または セルフホスト版) を認証基盤として利用する場合のアプリケーション登録と設定手順。 |
 | **[AIモデル設定ガイド](docs/MODELS.md)** | 環境変数を用いたAIモデル（Embedding/Reranker）の柔軟な差し替え方法と、品質・処理速度・メモリ消費の比較表。 |
 | **[開発者ガイド](docs/DEVELOPMENT.md)** | 各コンポーネントのビルド手法、ローカル仮想環境の構築、AIモデル変更時の動作テスト方法。 |
 
