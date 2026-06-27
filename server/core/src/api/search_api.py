@@ -44,7 +44,7 @@ app = FastAPI(
     ),
     version="1.0.0",
     # Caddy の strip_prefix に対応し、OpenAPI スキーマで正しいフルパスを表示する
-    root_path="/v1/api",
+    root_path="/api",
     # Custom GPTs の Actions 画面で表示される連絡先
     contact={"name": "RRAG Administrator"},
     license_info={"name": "MIT"},
