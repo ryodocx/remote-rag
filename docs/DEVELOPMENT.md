@@ -22,7 +22,7 @@ go mod tidy
 # ローカル環境（自分のPC）向けのビルド
 make build
 
-# 全OS (macOS Intel/ARM, Linux, Windows) 向けのクロスコンパイル
+# 全OS (macOS ARM, Linux, Windows) 向けのクロスコンパイル
 make build-all
 ```
 

@@ -165,10 +165,10 @@ func Authenticate() (string, error) {
 	}
 	state := hex.EncodeToString(stateBytes)
 
-	// 固定ポート (デフォルト 0 = OSが自動割り当て) または環境変数で指定されたポートでローカルサーバーを起動します
+	// 固定ポート (デフォルト 18080) または環境変数で指定されたポートでローカルサーバーを起動します
 	portStr := os.Getenv("OAUTH_REDIRECT_PORT")
 	if portStr == "" {
-		portStr = "0"
+		portStr = "18080"
 	}
 	listener, err := net.Listen("tcp", "127.0.0.1:"+portStr)
 	if err != nil {

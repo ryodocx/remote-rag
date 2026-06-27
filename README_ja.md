@@ -82,7 +82,7 @@ AIエージェント側に複雑な認証ロジックを組み込むことなく
 > 「社内の人工知能プロジェクトの歴史と、現在のステータスについて検索して教えて。」
 > 
 > **🤖 AIエージェント (Claude):**  
-> *(自動的に `rrag` のMCPツール `hybrid_search` を呼び出し)*  
+> *(自動的に `rrag` のMCPツール `search_wiki` を呼び出し)*  
 > 「検索結果によると、社内の人工知能プロジェクトは2000年代以降のディープラーニングの登場を機に第三次ブームとして始まりました。直近の議事録（プロジェクトX）によれば、現在のステータスは...」
 
 ---
@@ -204,6 +204,7 @@ Docker Composeで提供されるプロキシ群はそのまま利用しつつ、
 OAUTH_INTROSPECT_URL=
 OAUTH_CLIENT_ID=
 OAUTH_CLIENT_SECRET=
+OAUTH_JWKS_URL=
 ```
 （※クライアントのBridge CLIからのリクエスト時には、ダミートークンでも接続が通ります）
 
@@ -255,7 +256,7 @@ OAUTH_CLIENT_SECRET=
 | **[運用手順書](docs/OPERATIONS.md)** | サーバー環境変数の設定、デプロイ手順、認証エラー等のトラブルシューティング。 |
 | **[Okta設定例](docs/OKTA_SETUP.md)** | Okta (OAuth 2.0 / OIDC) を認証基盤として利用する場合のアプリケーション登録と設定手順。 |
 | **[GitLab設定例](docs/GITLAB_SETUP.md)** | GitLab (gitlab.com または セルフホスト版) を認証基盤として利用する場合のアプリケーション登録と設定手順。 |
-| **[AIチャット Web UI連携ガイド](docs/WEBUI_INTEGRATION_ja.md)** | ChatGPT, Claude, Gemini等のブラウザ版Web UIからの連携の仕組みと回避策について。 |
+| **[AIチャット Web UI連携ガイド](docs/WEBUI_INTEGRATION.md)** | ChatGPT, Claude, Gemini等のブラウザ版Web UIからの連携の仕組みと回避策について。 |
 | **[AIモデル設定ガイド](docs/MODELS.md)** | 環境変数を用いたAIモデル（Embedding/Reranker）の柔軟な差し替え方法と、品質・処理速度・メモリ消費の比較表。 |
 | **[開発者ガイド](docs/DEVELOPMENT.md)** | 各コンポーネントのビルド手法、ローカル仮想環境の構築、AIモデル変更時の動作テスト方法。 |
 

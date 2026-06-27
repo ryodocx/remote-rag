@@ -81,7 +81,7 @@ Once configured, you can seamlessly reference internal data from Claude Desktop 
 > "Search and tell me about the history and current status of our internal AI project."
 > 
 > **🤖 AI Agent (Claude):**  
-> *(Automatically calls RRAG's MCP tool `hybrid_search`)*  
+> *(Automatically calls RRAG's MCP tool `search_wiki`)*  
 > "According to the search results, the internal AI project started as the third AI boom with the emergence of deep learning in the 2000s. The latest meeting notes (Project X) indicate the current status is..."
 
 ---
