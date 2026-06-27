@@ -101,14 +101,8 @@ func getOAuth2Config() *oauth2.Config {
 		tokenURL = discoveredTokenURL
 	}
 
-	if authURL == "" {
-		authURL = "https://mock-oauth-domain/authorize"
-	}
-	if tokenURL == "" {
-		tokenURL = "https://mock-oauth-domain/token"
-	}
-	if clientID == "" {
-		clientID = "mock-client-id"
+	if authURL == "" || tokenURL == "" || clientID == "" {
+		return nil, fmt.Errorf("OAuth configuration is incomplete (OAUTH_CLIENT_ID, OAUTH_AUTH_URL, and OAUTH_TOKEN_URL are required)")
 	}
 
 	return &oauth2.Config{
@@ -119,7 +113,7 @@ func getOAuth2Config() *oauth2.Config {
 		},
 		Scopes: []string{"openid", "profile", "offline_access"},
 		// RedirectURL はローカルで待ち受ける一時的なHTTPサーバーのポートに合わせて動的に設定します
-	}
+	}, nil
 }
 
 // generatePKCE は OAuth 2.0 PKCE (Proof Key for Code Exchange) フローに必要な Code Verifier と Code Challenge を生成します
@@ -156,16 +150,25 @@ func openBrowser(url string) error {
 func Authenticate() (string, error) {
 	fmt.Fprintf(os.Stderr, "Authenticating with Identity Provider...\n")
 	
-	conf := getOAuth2Config()
+	conf, err := getOAuth2Config()
+	if err != nil {
+		return "", err
+	}
 	verifier, challenge, err := generatePKCE()
 	if err != nil {
 		return "", fmt.Errorf("failed to generate PKCE: %v", err)
 	}
 
-	// 固定ポート (デフォルト 18080) または環境変数で指定されたポートでローカルサーバーを起動します
+	stateBytes := make([]byte, 16)
+	if _, err := rand.Read(stateBytes); err != nil {
+		return "", fmt.Errorf("failed to generate state: %v", err)
+	}
+	state := hex.EncodeToString(stateBytes)
+
+	// 固定ポート (デフォルト 0 = OSが自動割り当て) または環境変数で指定されたポートでローカルサーバーを起動します
 	portStr := os.Getenv("OAUTH_REDIRECT_PORT")
 	if portStr == "" {
-		portStr = "18080"
+		portStr = "0"
 	}
 	listener, err := net.Listen("tcp", "127.0.0.1:"+portStr)
 	if err != nil {
@@ -177,7 +180,7 @@ func Authenticate() (string, error) {
 	redirectURL := fmt.Sprintf("http://127.0.0.1:%d/callback", port)
 	conf.RedirectURL = redirectURL
 
-	authURL := conf.AuthCodeURL("state-token", oauth2.AccessTypeOffline,
+	authURL := conf.AuthCodeURL(state, oauth2.AccessTypeOffline,
 		oauth2.SetAuthURLParam("code_challenge", challenge),
 		oauth2.SetAuthURLParam("code_challenge_method", "S256"),
 	)
@@ -192,7 +195,7 @@ func Authenticate() (string, error) {
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/callback", func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Query().Get("state") != "state-token" {
+		if r.URL.Query().Get("state") != state {
 			http.Error(w, "Invalid state", http.StatusBadRequest)
 			errCh <- fmt.Errorf("invalid state")
 			return
@@ -220,7 +223,9 @@ func Authenticate() (string, error) {
 			return "", err
 		}
 		
-		saveToken(token)
+		if err := saveToken(token); err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: failed to save token: %v\n", err)
+		}
 		return token.AccessToken, nil
 	case err := <-errCh:
 		srv.Shutdown(context.Background())
@@ -232,7 +237,7 @@ func Authenticate() (string, error) {
 }
 
 // saveToken は取得したトークン情報をJSONにシリアライズし、OSネイティブのKeychainに暗号化して保存します
-func saveToken(tok *oauth2.Token) {
+func saveToken(tok *oauth2.Token) error {
 	data := TokenData{
 		AccessToken:  tok.AccessToken,
 		RefreshToken: tok.RefreshToken,
@@ -241,12 +246,14 @@ func saveToken(tok *oauth2.Token) {
 	bytes, err := json.Marshal(data)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to marshal token: %v\n", err)
-		return
+		return err
 	}
 	err = keyring.Set(serviceName, getAccountName(), string(bytes))
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to save to keyring: %v\n", err)
+		return err
 	}
+	return nil
 }
 
 // GetValidToken はKeychainからトークンを取得し、有効期限を確認します。トークンが存在しないか期限切れの場合は再認証を促します。
@@ -269,7 +276,12 @@ func GetValidToken() (string, error) {
 		}
 		
 		// TokenSourceを使用してトークンをリフレッシュ
-		conf := getOAuth2Config()
+		conf, err := getOAuth2Config()
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Failed to load OAuth config for refresh: %v\n", err)
+			return Authenticate()
+		}
+		
 		tok := &oauth2.Token{
 			AccessToken:  data.AccessToken,
 			RefreshToken: data.RefreshToken,
@@ -284,7 +296,9 @@ func GetValidToken() (string, error) {
 		}
 		
 		// リフレッシュ成功時、新しいトークンを保存
-		saveToken(newTok)
+		if err := saveToken(newTok); err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: failed to save refreshed token: %v\n", err)
+		}
 		return newTok.AccessToken, nil
 	}
 
