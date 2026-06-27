@@ -43,6 +43,8 @@ app = FastAPI(
         "(Vector + FTS + CrossEncoder reranker)."
     ),
     version="1.0.0",
+    # Caddy の strip_prefix に対応し、OpenAPI スキーマで正しいフルパスを表示する
+    root_path="/v1/api",
     # Custom GPTs の Actions 画面で表示される連絡先
     contact={"name": "RRAG Administrator"},
     license_info={"name": "MIT"},
@@ -126,7 +128,7 @@ class PageContentResponse(BaseModel):
 # ---------------------------------------------------------------------------
 
 @app.get(
-    "/api/v1/search",
+    "/search",
     response_model=SearchResponse,
     summary="ナレッジベース検索 / Search knowledge base",
     description=(
@@ -183,7 +185,7 @@ async def search(
 
 
 @app.get(
-    "/api/v1/search/metadata",
+    "/search/metadata",
     response_model=SearchResponse,
     summary="メタデータ検索 / Search by metadata",
     description=(
@@ -230,7 +232,7 @@ async def search_by_metadata(
 
 
 @app.get(
-    "/api/v1/pages",
+    "/pages",
     response_model=PageListResponse,
     summary="ページ一覧取得 / List all pages",
     description=(
@@ -263,13 +265,13 @@ async def list_pages(
 
 
 @app.get(
-    "/api/v1/pages/{page_id}",
+    "/pages/{page_id}",
     response_model=PageContentResponse,
     summary="ページ全文取得 / Read full page content",
     description=(
         "指定した page_id のドキュメント全文を取得します。\n\n"
         "Retrieves the full text content of a specific document by its page ID. "
-        "Use the `/api/v1/pages` endpoint first to discover available page IDs."
+        "Use the `/pages` endpoint first to discover available page IDs."
     ),
     tags=["Pages"],
 )

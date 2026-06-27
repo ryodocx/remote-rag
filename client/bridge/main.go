@@ -91,11 +91,19 @@ func main() {
 								if strings.HasPrefix(endpointURI, "http") {
 									pURL = endpointURI
 								} else {
-									baseURL := strings.TrimSuffix(remoteURL, "/")
-									if !strings.HasPrefix(endpointURI, "/") {
-										endpointURI = "/" + endpointURI
+									// remoteURL が https://domain/v1/mcp/sse の場合、正しく https://domain/v1/mcp/messages 等に解決する
+									parsedRemote, err := url.Parse(remoteURL)
+									if err == nil {
+										parsedEndpoint, _ := url.Parse(endpointURI)
+										pURL = parsedRemote.ResolveReference(parsedEndpoint).String()
+									} else {
+										// fallback
+										baseURL := strings.TrimSuffix(remoteURL, "/")
+										if !strings.HasPrefix(endpointURI, "/") {
+											endpointURI = "/" + endpointURI
+										}
+										pURL = baseURL + endpointURI
 									}
-									pURL = baseURL + endpointURI
 								}
 								// drain previous URL if any
 								select {

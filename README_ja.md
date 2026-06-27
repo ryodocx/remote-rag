@@ -182,7 +182,7 @@ go install github.com/ryodocx/remote-rag/client/bridge@latest
   "mcpServers": {
     "rrag": {
       "command": "/絶対パス/rrag-bridge",
-      "args": ["--url", "https://<デプロイ先のドメイン>"]
+      "args": ["--url", "https://<デプロイ先のドメイン>/v1/mcp/sse"]
     }
   }
 }

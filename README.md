@@ -177,7 +177,7 @@ Register the server in your AI agent's MCP configuration file (e.g., `claude_des
   "mcpServers": {
     "rrag": {
       "command": "/absolute/path/to/rrag-bridge",
-      "args": ["--url", "https://<your-deployed-domain>"]
+      "args": ["--url", "https://<your-deployed-domain>/v1/mcp/sse"]
     }
   }
 }

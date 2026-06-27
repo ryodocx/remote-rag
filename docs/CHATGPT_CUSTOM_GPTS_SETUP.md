@@ -17,9 +17,9 @@ Custom GPTs の Actions に設定するためのスキーマ（`openapi.json`）
 
 サーバーがデプロイされたら、ブラウザまたは `curl` で以下にアクセスし、JSONファイルを保存します。
 ```bash
-curl -O https://rrag.example.com/openapi.json
+curl -O https://rrag.example.com/v1/api/openapi.json
 ```
-*(FastAPI はデフォルトで `/openapi.json` にスキーマを公開します)*
+*(FastAPIは `/v1/api/openapi.json` に OpenAPI スキーマを公開します)*
 
 ---
 
@@ -30,7 +30,7 @@ curl -O https://rrag.example.com/openapi.json
 3. 画面下部の **Create new action** をクリックします。
 
 ### Schema の設定
-取得した `openapi.json` の内容を **Schema** エリアに貼り付けるか、「Import from URL」に `https://rrag.example.com/openapi.json` を入力してインポートします。
+取得した `openapi.json` の内容を **Schema** エリアに貼り付けるか、「Import from URL」に `https://rrag.example.com/v1/api/openapi.json` を入力してインポートします。
 
 ### Authentication の設定
 スキーマの下にある **Authentication** の歯車アイコンをクリックし、以下のように設定します。
@@ -63,7 +63,7 @@ GPT が適切に検索 API を使用できるように、**Instructions** に以
 
 ```text
 あなたは社内ナレッジベースのアシスタントです。
-ユーザーからの質問に対して、必ず提供されている「Search」アクション（/api/v1/search）を使って社内情報を検索し、その結果に基づいて回答してください。
+ユーザーからの質問に対して、必ず提供されている「Search」アクション（/v1/api/search）を使って社内情報を検索し、その結果に基づいて回答してください。
 検索する際は、適切なキーワードや自然言語のクエリを用いてください。
 もしユーザーが認証（ログイン）を求められた場合は、ログインを行ってから再度質問するように案内してください。
 ```

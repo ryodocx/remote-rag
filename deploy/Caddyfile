@@ -17,22 +17,27 @@
         uri /auth
     }
 
-    # REST API (Custom GPTs / Actions 向け) — /api/* を rrag-server コンテナへ転送
-    handle /api/* {
+    # REST API (Custom GPTs / Actions 向け)
+    # /v1/api/* → rrag-server:8010 へ転送（プレフィックスを除去して渡す）
+    handle /v1/api/* {
+        uri strip_prefix /v1/api
         reverse_proxy rrag-server:8010
     }
 
     # MCP Server (Bridge CLI / デスクトップ AI エージェント向け)
-    # Bridge CLIからの初期接続 (ルートへのリクエスト) を /sse に書き換える
-    @root {
-        path /
+    # /v1/mcp/* → rrag-server:8000 へ転送（プレフィックスを除去して渡す）
+    handle /v1/mcp/* {
+        uri strip_prefix /v1/mcp
+        reverse_proxy rrag-server:8000 {
+            header_up Host {host}
+
+            # SSE (Server-Sent Events) 対応のため、バッファリングを完全に無効化する
+            flush_interval -1
+        }
     }
-    rewrite @root /sse
 
-    reverse_proxy rrag-server:8000 {
-        header_up Host {host}
-
-        # SSE (Server-Sent Events) 対応のため、バッファリングを完全に無効化する
-        flush_interval -1
+    # FastMCP が自動返却する POST エンドポイント (/messages) に対するルーティング
+    handle /messages {
+        reverse_proxy rrag-server:8000
     }
 }
