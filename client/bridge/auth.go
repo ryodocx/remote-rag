@@ -13,6 +13,7 @@ import (
 	"os"
 	"os/exec"
 	"runtime"
+	"strings"
 	"time"
 
 	"github.com/zalando/go-keyring"
@@ -42,11 +43,64 @@ type TokenData struct {
 	Expiry       time.Time `json:"expiry"`
 }
 
+var (
+	discoveredAuthURL  string
+	discoveredTokenURL string
+)
+
+func fetchOIDCDiscovery() {
+	issuer := os.Getenv("OAUTH_ISSUER_URL")
+	if issuer == "" || discoveredAuthURL != "" {
+		return
+	}
+
+	url := issuer
+	if !strings.HasSuffix(url, "/") {
+		url += "/"
+	}
+	url += ".well-known/openid-configuration"
+
+	client := &http.Client{Timeout: 5 * time.Second}
+	resp, err := client.Get(url)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Warning: failed to fetch OIDC discovery: %v\n", err)
+		return
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		fmt.Fprintf(os.Stderr, "Warning: OIDC discovery returned status %d\n", resp.StatusCode)
+		return
+	}
+
+	var config map[string]interface{}
+	if err := json.NewDecoder(resp.Body).Decode(&config); err != nil {
+		fmt.Fprintf(os.Stderr, "Warning: failed to parse OIDC discovery: %v\n", err)
+		return
+	}
+
+	if auth, ok := config["authorization_endpoint"].(string); ok {
+		discoveredAuthURL = auth
+	}
+	if token, ok := config["token_endpoint"].(string); ok {
+		discoveredTokenURL = token
+	}
+}
+
 func getOAuth2Config() *oauth2.Config {
+	fetchOIDCDiscovery()
+
 	authURL := os.Getenv("OAUTH_AUTH_URL")
 	tokenURL := os.Getenv("OAUTH_TOKEN_URL")
 	clientID := os.Getenv("OAUTH_CLIENT_ID")
 	
+	if authURL == "" && discoveredAuthURL != "" {
+		authURL = discoveredAuthURL
+	}
+	if tokenURL == "" && discoveredTokenURL != "" {
+		tokenURL = discoveredTokenURL
+	}
+
 	if authURL == "" {
 		authURL = "https://mock-oauth-domain/authorize"
 	}

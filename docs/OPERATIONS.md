@@ -24,9 +24,11 @@ OAUTH_CLIENT_SECRET=your-server-client-secret
 ### クライアント（Bridge）側の環境変数
 ローカルでブリッジを利用するユーザーのPC上で設定します。
 ```bash
-# 認可エンドポイントとトークンエンドポイント
-export OAUTH_AUTH_URL=https://{your-idp-domain}/oauth2/v1/authorize
-export OAUTH_TOKEN_URL=https://{your-idp-domain}/oauth2/v1/token
+# OIDC Discoveryを利用して自動設定するための Issuer URL (推奨)
+export OAUTH_ISSUER_URL=https://{your-idp-domain}
+# ※ OAUTH_ISSUER_URL を指定しない場合は、以下の2つを個別に指定することも可能です
+# export OAUTH_AUTH_URL=https://{your-idp-domain}/oauth2/v1/authorize
+# export OAUTH_TOKEN_URL=https://{your-idp-domain}/oauth2/v1/token
 
 # ローカルクライアント用の Client ID (PKCEを利用するためSecretは不要)
 export OAUTH_CLIENT_ID=your-client-id

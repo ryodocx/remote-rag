@@ -58,9 +58,9 @@ AIエージェントを実行するローカルPCから、ブラウザを通じ�
 AIエージェントを実行するPCの環境変数、またはエージェントの起動スクリプト内で以下を設定します。
 
 ```bash
-# Oktaの各種エンドポイント
-export OAUTH_AUTH_URL=https://{your-okta-domain}/oauth2/default/v1/authorize
-export OAUTH_TOKEN_URL=https://{your-okta-domain}/oauth2/default/v1/token
+# OktaのOIDC Discovery (Issuer) URL
+# これを指定することで認可エンドポイントとトークンエンドポイントが自動で設定されます。
+export OAUTH_ISSUER_URL=https://{your-okta-domain}/oauth2/default
 
 # 先ほど控えたNative ApplicationのClient ID
 export OAUTH_CLIENT_ID={Native App Client ID}
