@@ -25,6 +25,13 @@ app = FastAPI(title="RRAG Ingestion Webhook API")
 FastAPIInstrumentor.instrument_app(app)
 
 TASK_STORE = {}
+MAX_TASKS = 1000
+
+def cleanup_tasks():
+    if len(TASK_STORE) > MAX_TASKS:
+        keys_to_delete = list(TASK_STORE.keys())[:len(TASK_STORE)-MAX_TASKS]
+        for k in keys_to_delete:
+            del TASK_STORE[k]
 
 class IngestDocument(BaseModel):
     page_id: str
@@ -41,31 +48,48 @@ def background_ingest(task_id: str, documents: List[IngestDocument]):
     try:
         client = DatabaseClient()
         all_chunks = []
+        failed_docs = []
         
         for doc in documents:
-            # 1. 既存のチャンクを削除 (更新を想定)
-            client.delete_chunks_by_page(doc.page_id)
-            
-            # 2. テキストのチャンク化
-            chunks = chunk_markdown(doc.text, page_id=doc.page_id, title=doc.title, url=doc.url)
-            
-            # メタデータの付与
-            for c in chunks:
-                c["metadata"] = doc.metadata
+            try:
+                # 1. 既存のチャンクを削除 (更新を想定)
+                client.delete_chunks_by_page(doc.page_id)
                 
-            all_chunks.extend(chunks)
-            logger.info(f"Generated {len(chunks)} chunks for {doc.page_id}")
+                # 2. テキストのチャンク化
+                chunks = chunk_markdown(doc.text, page_id=doc.page_id, title=doc.title, url=doc.url)
+                
+                # メタデータの付与
+                for c in chunks:
+                    c["metadata"] = doc.metadata
+                    
+                all_chunks.extend(chunks)
+                logger.info(f"Generated {len(chunks)} chunks for {doc.page_id}")
+            except Exception as e:
+                logger.error(f"Failed to process document {doc.page_id}: {e}")
+                failed_docs.append({"page_id": doc.page_id, "error": str(e)})
             
         if all_chunks:
             # 3. データベースへのUpsert
-            client.add_chunks(all_chunks)
-            # 4. FTSインデックスは自動作成せず、明示的な最適化エンドポイントに委ねる
-            logger.info(f"Successfully ingested {len(all_chunks)} chunks in background.")
+            try:
+                client.add_chunks(all_chunks)
+                logger.info(f"Successfully ingested {len(all_chunks)} chunks in background.")
+            except Exception as e:
+                logger.error(f"Failed to insert chunks to DB: {e}")
+                TASK_STORE[task_id] = {"status": "failed", "error": f"DB Insertion failed: {e}", "failed_docs": failed_docs}
+                return
             
-        TASK_STORE[task_id] = {"status": "completed", "message": f"Successfully ingested {len(all_chunks)} chunks."}
+        message = f"Successfully ingested {len(all_chunks)} chunks."
+        if failed_docs:
+            message += f" ({len(failed_docs)} documents failed)."
+            
+        TASK_STORE[task_id] = {
+            "status": "completed" if not failed_docs else "partial_success",
+            "message": message,
+            "failed_docs": failed_docs
+        }
             
     except Exception as e:
-        logger.error(f"Error during background ingestion: {e}")
+        logger.error(f"Error during background ingestion setup: {e}")
         TASK_STORE[task_id] = {"status": "failed", "error": str(e)}
 
 @app.post("/ingest")
@@ -79,6 +103,7 @@ async def ingest_webhook(request: IngestRequest, background_tasks: BackgroundTas
         
     task_id = str(uuid.uuid4())
     TASK_STORE[task_id] = {"status": "pending"}
+    cleanup_tasks()
     
     background_tasks.add_task(background_ingest, task_id, request.documents)
     return {"status": "accepted", "task_id": task_id, "message": f"Ingestion for {len(request.documents)} documents started in background"}
@@ -101,6 +126,7 @@ async def optimize_database(background_tasks: BackgroundTasks):
     """
     task_id = str(uuid.uuid4())
     TASK_STORE[task_id] = {"status": "pending"}
+    cleanup_tasks()
     background_tasks.add_task(background_optimize, task_id)
     return {"status": "accepted", "task_id": task_id, "message": "Database optimization started in background"}
 
