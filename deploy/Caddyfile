@@ -18,6 +18,12 @@
     }
 
     # 認証が通った場合、MCPサーバーへリバースプロキシ
+    # Bridge CLIからの初期接続 (ルートへのリクエスト) を /sse に書き換える
+    @root {
+        path /
+    }
+    rewrite @root /sse
+
     reverse_proxy mcp-server:8000 {
         header_up Host {host}
         

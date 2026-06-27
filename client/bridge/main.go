@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"bytes"
+	"flag"
 	"fmt"
 	"io"
 	"net/http"
@@ -12,10 +13,17 @@ import (
 )
 
 func main() {
-	remoteURL := os.Getenv("MCP_REMOTE_URL")
+	urlFlag := flag.String("url", "", "Remote MCP Server URL")
+	flag.Parse()
+
+	remoteURL := *urlFlag
 	if remoteURL == "" {
-		// 未指定時のデフォルトはCaddyのリバースプロキシ (ローカル環境向け)
-		remoteURL = "http://localhost:8080" 
+		remoteURL = os.Getenv("MCP_REMOTE_URL")
+	}
+	if remoteURL == "" {
+		fmt.Fprintf(os.Stderr, "Error: Remote MCP Server URL is not specified.\n")
+		fmt.Fprintf(os.Stderr, "Please provide it via --url flag or MCP_REMOTE_URL environment variable.\n")
+		os.Exit(1)
 	}
 
 	// 1. 認証を実行し、アクセストークンを取得
@@ -26,8 +34,7 @@ func main() {
 	}
 
 	// 2. リモートMCPサーバーのSSE (Server-Sent Events) エンドポイントへ接続
-	sseURL := remoteURL + "/sse"
-	req, err := http.NewRequest("GET", sseURL, nil)
+	req, err := http.NewRequest("GET", remoteURL, nil)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to create SSE request: %v\n", err)
 		os.Exit(1)
