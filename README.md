@@ -1,11 +1,11 @@
 <div align="center">
   <h1>🚀 RRAG (Remote RAG) MCP Server & Auth Proxy</h1>
-  <p><strong>エンタープライズの社内ナレッジを、AIエージェントに安全に接続する架け橋</strong></p>
+  <p><strong>A secure bridge connecting enterprise internal knowledge to AI agents</strong></p>
 
   <p>
-    <b>🛡️ 堅牢なセキュリティ (OAuth 2.0)</b> &nbsp;•&nbsp; 
-    <b>🎯 圧倒的な検索精度 (Hybrid RAG)</b> &nbsp;•&nbsp; 
-    <b>🔌 シームレスなAI連携 (MCP)</b>
+    <b>🛡️ Robust Security (OAuth 2.0 & JWKS)</b> &nbsp;•&nbsp; 
+    <b>🎯 Incredible Search Accuracy (Hybrid RAG)</b> &nbsp;•&nbsp; 
+    <b>🔌 Seamless AI Integration (MCP)</b>
   </p>
 
   [![Docker](https://img.shields.io/badge/docker-%230db7ed.svg?style=flat&logo=docker&logoColor=white)](#)
@@ -15,92 +15,99 @@
   [![License](https://img.shields.io/badge/license-MIT-green.svg)](#)
 </div>
 
+<p align="center">
+  <em><a href="README_ja.md">日本語の README はこちら (Japanese README)</a></em>
+</p>
+
 <br />
 
-社内ナレッジベース（社内Wikiや機密文書等）を検索するための高精度な**RAG（検索拡張生成）エンジン**を、[Model Context Protocol (MCP)](https://modelcontextprotocol.io/) を通じてAIエージェント（Cursor, Claude Desktop等）に提供するエンタープライズ向け基盤です。
+An enterprise-ready platform providing a highly accurate **RAG (Retrieval-Augmented Generation) engine** to search internal knowledge bases (e.g., wikis, confidential documents), delivered to AI agents like Cursor or Claude Desktop via the [Model Context Protocol (MCP)](https://modelcontextprotocol.io/).
 
-単なる検索サーバーにとどまらず、**汎用的な OAuth 2.0 / OIDC 認証**とプロキシ機構を統合し、セキュアなネットワーク越しのアクセスを標準でサポートしています。
+More than just a search server, RRAG natively integrates a **generic OAuth 2.0 / OIDC authentication and proxy mechanism**, enabling secure remote access over the network.
 
-### 🌟 本プロジェクトがもたらす3つの価値
-1. **脱・固定クレデンシャル**: 漏洩リスクの高いAPIキー管理から解放され、全社標準のIdP（Okta等）を用いた安全なアクセス管理を実現します。
-2. **AIの文脈理解を底上げする精度**: ベクトル×FTSのハイブリッド検索とRerankerの再評価により、「AIが的外れな社内情報を参照する」課題を解決します。
-3. **インフラを問わない接続性**: クライアントPCとリモートサーバー間を意識させない透過的なブリッジにより、場所を問わず安全なAI活用環境を提供します。
-
----
-
-## 📖 目次
-
-- [なぜこのプロジェクトが必要か？ (Why?)](#-なぜこのプロジェクトが必要か-why)
-- [主な機能 (Features)](#-主な機能-features)
-- [ユースケース・対話デモ](#-ユースケース対話デモ)
-- [アーキテクチャ構成図](#-アーキテクチャ構成図-簡易版)
-- [クイックスタート](#-クイックスタート-デプロイから連携まで)
-- [ディレクトリ構造](#-ディレクトリ構造)
-- [ドキュメント一覧](#-ドキュメント一覧)
-- [よくある質問 (FAQ)](#-よくある質問-faq)
+### 🌟 Three Key Values of this Project
+1. **Goodbye Static Credentials**: Escape the high-risk management of API keys. RRAG relies on company-standard IdPs (e.g., Okta, Auth0, GitLab) for secure access management.
+2. **Elevating AI Context Understanding**: Combining Vector and Full-Text Search (FTS) with Cross-Encoder (Reranker) re-evaluation completely resolves the problem of AI referencing irrelevant internal info.
+3. **Infrastructure-agnostic Connectivity**: A transparent bridge client that hides the boundaries between the local PC and the remote server, providing a secure AI environment anywhere.
 
 ---
 
-## 🤔 なぜこのプロジェクトが必要か？ (Why?)
+## 📖 Table of Contents
 
-AIエージェントの業務活用が進む中、「社内の機密データ（Wiki、仕様書、議事録）をAIに読み込ませたい」というニーズが急増しています。これに対する最適解の一つが **Model Context Protocol (MCP)** ですが、これを企業環境へ導入するにあたり **2つの大きな壁** が存在しました。
-
-1. **認証・認可の壁**: リモートにある社内のMCPサーバーへアクセスするには、APIキーなどの固定クレデンシャルを各PCに配布するしかなく、漏洩リスクや管理コスト（ローテーションの手間）が課題でした。
-2. **検索精度の壁**: AIエージェントが複雑な日本語の文脈を理解し、社内の膨大なドキュメントの中から「本当に必要な数行」を見つけ出すには、高度なRAGアーキテクチャが必要でした。
-
-**RRAG MCP Server & Auth Proxy** は、これらの課題を同時に解決します。
-AIエージェントに複雑な認証ロジックを持たせることなく、企業で標準的に用いられる **OAuth 2.0 / OIDC**（OktaやAuth0等）を利用した安全なアクセスを実現し、最高峰のハイブリッド検索バックエンドを提供します。
-
----
-
-## ✨ 主な機能 (Features)
-
-*   **🛡️ セキュアな認証プロキシ (Zero Trust Ready)**
-    Caddy + 独自実装の Auth Helper により、MCP通信の直前で OAuth 2.0 のトークン検証（RFC 7662: Token Introspection）を実行。特定のベンダーに依存しない多層防御を実現します。
-*   **💻 透過的なクライアント Bridge**
-    macOS KeychainやWindows Credential Managerと自動連携。ブラウザを通じたログイン（PKCEフロー）でトークンを安全に取得・更新し、AIエージェントの標準入出力（`stdio`）をサーバーの `SSE` にシームレスにブリッジします。
-*   **🔍 高度なハイブリッド検索 (Vector + FTS)**
-    [LanceDB](https://lancedb.github.io/lancedb/)を採用し、ベクトル検索とキーワード検索を融合。さらにCrossEncoder（Reranker）による再評価を行い、最も関連性の高いチャンクだけを正確に抽出します。
-*   **🧠 プラガブルなAIモデル設定**
-    用途に合わせてEmbeddingモデルとRerankerモデルを環境変数から自由に差し替え可能。デフォルトで軽量かつ高精度な `intfloat/multilingual-e5-base` を採用し、完全ローカルでデータ外部送信ゼロを実現。
+- [Why is this project needed? (Why?)](#-why-is-this-project-needed-why)
+- [Features](#-features)
+- [Use Case & Demo](#-use-case--demo)
+- [Architecture Overview](#-architecture-overview)
+- [Quick Start](#-quick-start-deployment-to-integration)
+- [Directory Structure](#-directory-structure)
+- [Documentation](#-documentation)
+- [FAQ](#-faq)
 
 ---
 
-## 💡 ユースケース・対話デモ
+## 🤔 Why is this project needed? (Why?)
 
-設定完了後、Claude Desktop等からシームレスに社内データを参照できます。
+As the utilization of AI agents in business accelerates, the demand to "feed internal confidential data (wikis, specs, meeting notes) to AI" is surging. The **Model Context Protocol (MCP)** is one of the best answers for this, but introducing it to enterprise environments poses **two major hurdles**:
 
-> **👤 ユーザー:**  
-> 「社内の人工知能プロジェクトの歴史と、現在のステータスについて検索して教えて。」
+1. **The Wall of Authentication & Authorization**: To access an internal MCP server remotely, companies had to distribute fixed credentials like API keys to each PC. This created massive security risks (leaks) and high management costs (rotation).
+2. **The Wall of Search Accuracy**: To understand complex business context and pinpoint the "exact few lines needed" out of massive document stores, a highly sophisticated RAG architecture is required.
+
+**RRAG MCP Server & Auth Proxy** solves both challenges simultaneously.
+Without embedding complex authentication logic into the AI agent, it achieves secure access using standard **OAuth 2.0 / OIDC** while providing a top-tier hybrid search backend.
+
+---
+
+## ✨ Features
+
+*   **🛡️ Secure Auth Proxy (Zero Trust Ready)**
+    Caddy + a custom Auth Helper validate OAuth 2.0 tokens right before MCP communication. It supports both **Token Introspection (RFC 7662)** and **Local JWT Validation via JWKS** for lightning-fast verification without relying on specific vendors.
+*   **👤 Attribute-based Access Control (ABAC)**
+    Configure fine-grained filtering based on IdP claims. Validate `iss`, `aud`, `client_id`, and `scopes` (strict AND conditions), along with user attributes like `email` domains, exact emails, or `groups` (AND conditions).
+*   **💻 Transparent Client Bridge**
+    Automatically integrates with macOS Keychain or Windows Credential Manager. By acquiring/refreshing tokens via browser (PKCE flow), it seamlessly bridges the AI agent's standard I/O (`stdio`) to the server's `SSE`.
+*   **🔍 Advanced Hybrid Search (Vector + FTS)**
+    Leveraging [LanceDB](https://lancedb.github.io/lancedb/), it fuses vector search and keyword search. It then applies a CrossEncoder (Reranker) to extract only the most relevant chunks.
+*   **🧠 Pluggable AI Models**
+    Freely swap Embedding and Reranker models via environment variables. Defaults to the lightweight and highly accurate `intfloat/multilingual-e5-base`, running entirely locally with zero external data transmission.
+
+---
+
+## 💡 Use Case & Demo
+
+Once configured, you can seamlessly reference internal data from Claude Desktop or Cursor.
+
+> **👤 User:**  
+> "Search and tell me about the history and current status of our internal AI project."
 > 
-> **🤖 AIエージェント (Claude):**  
-> *(自動的に `rrag` のMCPツール `hybrid_search` を呼び出し)*  
-> 「検索結果によると、社内の人工知能プロジェクトは2000年代以降のディープラーニングの登場を機に第三次ブームとして始まりました。直近の議事録（プロジェクトX）によれば、現在のステータスは...」
+> **🤖 AI Agent (Claude):**  
+> *(Automatically calls RRAG's MCP tool `hybrid_search`)*  
+> "According to the search results, the internal AI project started as the third AI boom with the emergence of deep learning in the 2000s. The latest meeting notes (Project X) indicate the current status is..."
 
 ---
 
-## 🧩 アーキテクチャ構成図 (簡易版)
+## 🧩 Architecture Overview
 
-ローカル側のBridge CLIがトークン取得を自動化し、サーバー側のCaddy+Auth Helperが**「認証の関所」**として機能します。これにより、MCPサーバー自身は認証ロジックを一切持たず、安全なRAG検索のみに専念できます。
-（より詳細なシーケンス図等は、**[アーキテクチャ設計書](docs/ARCHITECTURE.md)** をご覧ください）
+The local Bridge CLI automates token acquisition, while the Caddy + Auth Helper on the server acts as the **"Authentication Gatekeeper"**. This allows the MCP server itself to remain completely free of authentication logic, focusing entirely on secure RAG searches.
+
+(For detailed sequence diagrams, see the **[Architecture Document](docs/ARCHITECTURE.md)**)
 
 ```mermaid
 graph LR
-    %% クライアント層
-    Agent[AIエージェント<br/>Cursor, Claude等] -->|1. stdio接続| Bridge[Bridge CLI<br/>トークン自動取得・更新]
+    %% Client Layer
+    Agent[AI Agent<br/>Cursor, Claude etc.] -->|1. stdio connection| Bridge[Bridge CLI<br/>Auto Token Refresh]
     
-    %% ネットワーク・プロキシ層
-    Bridge ==>|2. HTTPS通信<br/>Bearerトークン付与| Proxy[Caddy + Auth Helper<br/>🔒 認証・プロキシ層]
+    %% Network Proxy Layer
+    Bridge ==>|2. HTTPS<br/>w/ Bearer Token| Proxy[Caddy + Auth Helper<br/>🔒 Auth Proxy]
     
-    %% 外部認可サーバー
-    IdP((認可サーバー<br/>Okta, Auth0 等))
-    Proxy -.->|3. トークン有効性検証<br/>Introspection| IdP
+    %% External IdP
+    IdP((IdP<br/>Okta, Auth0 etc.))
+    Proxy -.->|3. Token Validation<br/>Introspection or JWKS| IdP
     
-    %% アプリケーション層 (保護された領域)
-    Proxy -->|4. 検証成功時のみ通過| MCPServer[MCP Server<br/>RAGエンジン]
+    %% Application Layer (Protected)
+    Proxy -->|4. Pass if valid| MCPServer[MCP Server<br/>RAG Engine]
     MCPServer <--> LanceDB[(LanceDB)]
 
-    %% 強調スタイル
+    %% Styles
     style Proxy fill:#ffe6e6,stroke:#ff4d4d,stroke-width:3px
     style Bridge fill:#e6f3ff,stroke:#4da6ff,stroke-width:2px
     style MCPServer fill:#f9f9f9,stroke:#cccccc,stroke-dasharray: 5 5
@@ -108,108 +115,103 @@ graph LR
 
 ---
 
-## 🚀 クイックスタート: デプロイから連携まで
+## 🚀 Quick Start: Deployment to Integration
 
-DockerとDocker Compose（サーバー側）、およびGo（クライアントビルド用）がインストールされている環境での手順です。
+Prerequisites: Docker, Docker Compose (Server side), and Go (for Client build).
 
-### 1. サーバー環境の設定と起動
-まずはサーバー（RAGエンジンとプロキシ）を立ち上げます。
+### 1. Server Environment Setup & Startup
+First, launch the server (RAG engine and proxy).
 
 ```bash
 cd deploy
 
-# 1. 認証情報の環境変数を設定（認可サーバーの情報を記載）
-# ※ OAuthを使用しないテスト環境の場合は、空の.envを作成してください。
+# 1. Set Auth environment variables (IdP info, JWKS URL, etc.)
+# * For a no-auth testing environment, create an empty .env file.
 touch .env
 
-# 2. サーバー群のビルドと起動
+# 2. Build and start servers
 docker compose up -d
 ```
 
-### 2. サンプルデータの取り込み（Ingestion）
-RAGエンジン用のデータベースにサンプルデータ（Wikipedia等）を取り込むため、`mcp-server` コンテナ内でスクリプトを実行します。
+### 2. Ingest Sample Data
+Run a script inside the `mcp-server` container to import sample data into the RAG database.
 
 ```bash
-# コンテナ内でWikipediaから20記事を取得してDBに保存
+# Fetch 20 Wikipedia articles and save to DB
 docker exec -it mcp-server python scripts/ingest_cli.py wiki --count 20
 ```
-*(※初回実行時は、各種AIモデルが自動でダウンロードされ、Dockerボリュームにキャッシュされます)*
+*(On first run, AI models are automatically downloaded and cached in a Docker volume)*
 
-### 3. クライアント(Bridge)のインストール
-次に、AIエージェント（手元のPC）で動作するブリッジCLIを用意します。
+### 3. Client (Bridge) Installation
+Prepare the Bridge CLI on the local PC running the AI agent.
 
-**Homebrew を利用したインストール (macOS / Linux):**
-公式リポジトリのTapを利用して簡単にインストールできます。
+**macOS / Linux (Homebrew):**
 ```bash
 brew tap ryodocx/remote-rag
 brew install rrag-bridge
 ```
 
-**Scoop を利用したインストール (Windows):**
-Windows環境では、Scoopを利用して簡単にインストールできます。
+**Windows (Scoop):**
 ```powershell
 scoop bucket add rrag https://github.com/ryodocx/remote-rag.git
 scoop install rrag-bridge
 ```
 
-**手動ダウンロードとインストール (Windows 等):**
-パッケージマネージャを利用しない場合、以下の手順で手動インストールが可能です。
-1. [GitHub Releases](https://github.com/ryodocx/remote-rag/releases) ページから、利用環境に合ったアーカイブ (例: `rrag-bridge-windows-amd64.zip`) をダウンロードします。
-2. ダウンロードしたZIPファイルを任意のフォルダ（例: `C:\tools\rrag-bridge`）に展開します。
-3. 展開したフォルダをシステムの環境変数 `PATH` に追加します。
-   - Windowsの場合: スタートメニューから「環境変数」を検索して開き、「システムのプロパティ > 詳細設定 > 環境変数」から、ユーザー環境変数またはシステム環境変数の `Path` を編集し、展開先のフォルダパスを追記します。
-4. コマンドプロンプトやPowerShellを再起動し、`rrag-bridge` コマンドが実行できることを確認します。
+**Manual Download (Windows, etc.):**
+1. Download the archive for your environment (e.g., `rrag-bridge-windows-amd64.zip`) from the [GitHub Releases](https://github.com/ryodocx/remote-rag/releases) page.
+2. Extract the ZIP file to any folder (e.g., `C:\tools\rrag-bridge`).
+3. Add the extracted folder to your system's `PATH` environment variable.
+4. Restart your terminal and verify the `rrag-bridge` command works.
 
-**go install を利用したインストール:**
-Go言語環境がある場合は、ソースをcloneせずに直接インストール可能です（全OS共通）。
+**Install via `go install` (All OS):**
 ```bash
 go install github.com/ryodocx/remote-rag/client/bridge@latest
 ```
 
-### 4. Claude Desktop / Cursor との連携
-最後に、AIエージェントのMCP設定ファイル（Claude Desktopの場合は `claude_desktop_config.json`）にサーバーを登録します。
+### 4. Integration with Claude Desktop / Cursor
+Register the server in your AI agent's MCP configuration file (e.g., `claude_desktop_config.json` for Claude Desktop).
 
 ```json
 {
   "mcpServers": {
     "rrag": {
-      "command": "/絶対パス/rrag-bridge",
-      "args": ["--url", "https://<デプロイ先のドメイン>"]
+      "command": "/absolute/path/to/rrag-bridge",
+      "args": ["--url", "https://<your-deployed-domain>"]
     }
   }
 }
 ```
 
-これで設定は完了です！
+Setup complete!
 
 ---
 
-## 🔓 ローカルでの認証なし利用 (No-Auth Mode)
+## 🔓 No-Auth Mode (Local Testing)
 
-社内ネットワーク等の安全な環境で、OAuthによる認証なしに手軽にテスト・運用を行いたい場合、以下の手順で認証をバイパスできます。
+If you want to easily test in a secure internal network without OAuth, you can bypass authentication.
 
-### パターン1: サーバーを立ち上げて認証をモック化する
-Docker Composeで提供されるプロキシ群はそのまま利用しつつ、認証のみをパスさせたい場合は、`deploy/.env` ファイルの認証関連変数を**空**に設定します。
-これにより `auth-helper` はあらゆるBearerトークン（ダミーの文字列でも可）を「有効」として許可します。
+### Pattern 1: Mock Authentication at the Proxy
+Leave the auth variables in `deploy/.env` **empty**. The `auth-helper` will consider any Bearer token valid.
 
 ```env
 OAUTH_INTROSPECT_URL=
 OAUTH_CLIENT_ID=
 OAUTH_CLIENT_SECRET=
+OAUTH_JWKS_URL=
 ```
-（※クライアントのBridge CLIからのリクエスト時には、ダミートークンでも接続が通ります）
+*(The Bridge CLI client requests will pass through even with a dummy token)*
 
-### パターン2: AIエージェントからRAGエンジンを直接呼び出す（最も手軽）
-ネットワーク越しのアクセス（CaddyやBridge CLI）が不要で、自PC内のデータを検索するだけの場合は、RAGエンジン本体（Python）を直接 `stdio` で実行するのが最も手軽です。
+### Pattern 2: Call the RAG Engine Directly (Easiest)
+If you don't need network access and just want to search local data, run the Python RAG engine directly via `stdio`.
 
-**Claude Desktop / Cursor 設定例:**
+**Claude Desktop / Cursor Config:**
 ```json
 {
   "mcpServers": {
     "rrag-local": {
       "command": "python",
       "args": [
-        "/絶対パス/server/core/src/mcp_server/server.py",
+        "/absolute/path/to/server/core/src/mcp_server/server.py",
         "--transport",
         "stdio"
       ]
@@ -217,55 +219,52 @@ OAUTH_CLIENT_SECRET=
   }
 }
 ```
-*(※Python 3.14以上および `server/core/requirements.txt` のパッケージがPCにインストールされている必要があります)*
+*(Requires Python 3.14+ and packages from `server/core/requirements.txt`)*
 
 ---
 
-## 📁 ディレクトリ構造
-
-本リポジトリは役割ごとに明確にコンポーネントが分割されています。
+## 📁 Directory Structure
 
 ```text
 .
-├── client/          # エージェントから呼び出されるGo言語製のブリッジCLI
-├── server/          # サーバーサイドのメインロジック群
-│   ├── core/        # Python製のRAGエンジンおよびMCPサーバー (FastMCP)
-│   └── auth-helper/ # Go言語製の認証補助サーバー (Token検証 / Redisキャッシュ)
-├── deploy/          # Docker ComposeやCaddyfile等のデプロイ設定
-└── docs/            # 各種ドキュメント群
+├── client/          # Go-based Bridge CLI called by agents
+├── server/          # Server-side logic
+│   ├── core/        # Python RAG engine & MCP Server (FastMCP)
+│   └── auth-helper/ # Go Auth proxy (Token validation / JWKS / Caching)
+├── deploy/          # Deployment configs (Docker Compose, Caddyfile)
+└── docs/            # Documentation
 ```
 
 ---
 
-## 📚 ドキュメント一覧
+## 📚 Documentation
 
-より高度な運用やカスタマイズについては、以下のドキュメントを参照してください。
-
-| ドキュメント | 内容 |
+| Document | Content |
 | :--- | :--- |
-| **[アーキテクチャ設計書](docs/ARCHITECTURE.md)** | システム全体の構成図、各コンポーネントの役割と認証連携（PKCE）のシーケンス図。 |
-| **[運用手順書](docs/OPERATIONS.md)** | サーバー環境変数の設定、デプロイ手順、認証エラー等のトラブルシューティング。 |
-| **[Okta設定例](docs/OKTA_SETUP.md)** | Okta (OAuth 2.0 / OIDC) を認証基盤として利用する場合のアプリケーション登録と設定手順。 |
-| **[GitLab設定例](docs/GITLAB_SETUP.md)** | GitLab (gitlab.com または セルフホスト版) を認証基盤として利用する場合のアプリケーション登録と設定手順。 |
-| **[AIモデル設定ガイド](docs/MODELS.md)** | 環境変数を用いたAIモデル（Embedding/Reranker）の柔軟な差し替え方法と、品質・処理速度・メモリ消費の比較表。 |
-| **[開発者ガイド](docs/DEVELOPMENT.md)** | 各コンポーネントのビルド手法、ローカル仮想環境の構築、AIモデル変更時の動作テスト方法。 |
+| **[Architecture](docs/ARCHITECTURE.md)** | System components, proxy architecture, and PKCE auth sequence diagrams. |
+| **[Operations Manual](docs/OPERATIONS.md)** | Server environment variables, deployment steps, and troubleshooting. |
+| **[Okta Setup Guide](docs/OKTA_SETUP.md)** | App registration and custom claims config for Okta (OAuth 2.0 / OIDC). |
+| **[GitLab Setup Guide](docs/GITLAB_SETUP.md)** | App registration and claim details for GitLab (gitlab.com / Self-hosted). |
+| **[GitHub Setup Guide](docs/GITHUB_SETUP.md)** | Architectural limitations of GitHub OAuth and how to set it up using an IdP broker like Auth0. |
+| **[AI Models Guide](docs/MODELS.md)** | How to swap Embedding/Reranker models, with comparisons for quality, speed, and memory usage. |
+| **[Development Guide](docs/DEVELOPMENT.md)** | Build instructions, local environments, and testing AI models. |
 
 ---
 
-## ❓ よくある質問 (FAQ)
+## ❓ FAQ
 
-**Q. 特定のIdP（Okta, Auth0, Entra IDなど）に依存していますか？**  
-A. いいえ。RFC 7662 (Token Introspection) をサポートする標準的なOAuth 2.0 / OIDC互換の認可サーバーであれば、ベンダーを問わず利用可能です。
+**Q. Is this tied to a specific IdP (Okta, Auth0, Entra ID)?**  
+A. No. It supports any standard OAuth 2.0 / OIDC compliant authorization server via Token Introspection (RFC 7662) or JWKS local validation.
 
-**Q. AIモデルを変更することは可能ですか？**  
-A. はい。用途に応じて、超軽量モデルから「BGE-M3」のような最高峰モデル、あるいは日本語特化モデルまで環境変数で容易に差し替え可能です。詳細は [MODELS.md](docs/MODELS.md) をご覧ください。
+**Q. Can I change the AI models?**  
+A. Yes. You can easily switch out models via environment variables—from ultra-lightweight to high-end models like "BGE-M3". See [MODELS.md](docs/MODELS.md).
 
-**Q. クライアント側のBridge CLIはWindowsに対応していますか？**  
-A. はい。Go言語で書かれているため、macOS、Linux、Windowsのいずれでもクロスコンパイルして利用可能です。認証情報は各OS標準のシークレットマネージャに安全に保管されます。
+**Q. Does the Bridge CLI support Windows?**  
+A. Yes. Since it's written in Go, it's cross-compiled for macOS, Linux, and Windows. Credentials are safely stored in each OS's native secret manager.
 
 ---
 
-## 📄 コントリビューション
+## 📄 Contributing
 
-*   **IssueやPull Requestは大歓迎です！**
-*   新たなAIモデルの検証結果や、クライアント機能の拡充など、皆様からのコントリビューションをお待ちしております。
+*   **Issues and Pull Requests are highly welcomed!**
+*   We welcome contributions such as new AI model benchmarks, client enhancements, and bug fixes.
