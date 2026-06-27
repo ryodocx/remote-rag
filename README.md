@@ -145,8 +145,23 @@ brew tap ryodocx/remote-rag
 brew install rrag-bridge
 ```
 
+**Scoop を利用したインストール (Windows):**
+Windows環境では、Scoopを利用して簡単にインストールできます。
+```powershell
+scoop bucket add rrag https://github.com/ryodocx/remote-rag.git
+scoop install rrag-bridge
+```
+
+**手動ダウンロードとインストール (Windows 等):**
+パッケージマネージャを利用しない場合、以下の手順で手動インストールが可能です。
+1. [GitHub Releases](https://github.com/ryodocx/remote-rag/releases) ページから、利用環境に合ったアーカイブ (例: `rrag-bridge-windows-amd64.zip`) をダウンロードします。
+2. ダウンロードしたZIPファイルを任意のフォルダ（例: `C:\tools\rrag-bridge`）に展開します。
+3. 展開したフォルダをシステムの環境変数 `PATH` に追加します。
+   - Windowsの場合: スタートメニューから「環境変数」を検索して開き、「システムのプロパティ > 詳細設定 > 環境変数」から、ユーザー環境変数またはシステム環境変数の `Path` を編集し、展開先のフォルダパスを追記します。
+4. コマンドプロンプトやPowerShellを再起動し、`rrag-bridge` コマンドが実行できることを確認します。
+
 **go install を利用したインストール:**
-Go言語環境がある場合は、ソースをcloneせずに直接インストール可能です。
+Go言語環境がある場合は、ソースをcloneせずに直接インストール可能です（全OS共通）。
 ```bash
 go install github.com/ryodocx/remote-rag/client/bridge@latest
 ```
@@ -159,7 +174,7 @@ go install github.com/ryodocx/remote-rag/client/bridge@latest
   "mcpServers": {
     "rrag": {
       "command": "/絶対パス/rrag-bridge",
-      "args": ["--url", "https://<デプロイ先のドメイン>/sse"]
+      "args": ["--url", "https://<デプロイ先のドメイン>"]
     }
   }
 }
@@ -230,6 +245,7 @@ OAUTH_CLIENT_SECRET=
 | :--- | :--- |
 | **[アーキテクチャ設計書](docs/ARCHITECTURE.md)** | システム全体の構成図、各コンポーネントの役割と認証連携（PKCE）のシーケンス図。 |
 | **[運用手順書](docs/OPERATIONS.md)** | サーバー環境変数の設定、デプロイ手順、認証エラー等のトラブルシューティング。 |
+| **[Okta設定例](docs/OKTA_SETUP.md)** | Okta (OAuth 2.0 / OIDC) を認証基盤として利用する場合のアプリケーション登録と設定手順。 |
 | **[AIモデル設定ガイド](docs/MODELS.md)** | 環境変数を用いたAIモデル（Embedding/Reranker）の柔軟な差し替え方法と、品質・処理速度・メモリ消費の比較表。 |
 | **[開発者ガイド](docs/DEVELOPMENT.md)** | 各コンポーネントのビルド手法、ローカル仮想環境の構築、AIモデル変更時の動作テスト方法。 |
 
