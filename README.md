@@ -135,11 +135,11 @@ docker compose up -d
 ```
 
 ### 2. Ingest Sample Data
-Run a script inside the `mcp-server` container to import sample data into the RAG database.
+Run a script inside the `rrag-server` container to import sample data into the RAG database.
 
 ```bash
 # Fetch 20 Wikipedia articles and save to DB
-docker exec -it mcp-server python scripts/ingest_cli.py wiki --count 20
+docker exec -it rrag-server python scripts/ingest_cli.py wiki --count 20
 ```
 *(On first run, AI models are automatically downloaded and cached in a Docker volume)*
 

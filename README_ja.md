@@ -135,11 +135,11 @@ docker compose up -d
 ```
 
 ### 2. サンプルデータの取り込み（Ingestion）
-RAGエンジン用のデータベースにサンプルデータ（Wikipedia等）を取り込むため、`mcp-server` コンテナ内でスクリプトを実行します。
+RAGエンジン用のデータベースにサンプルデータ（Wikipedia等）を取り込むため、`rrag-server` コンテナ内でスクリプトを実行します。
 
 ```bash
 # コンテナ内でWikipediaから20記事を取得してDBに保存
-docker exec -it mcp-server python scripts/ingest_cli.py wiki --count 20
+docker exec -it rrag-server python scripts/ingest_cli.py wiki --count 20
 ```
 *(※初回実行時は、各種AIモデルが自動でダウンロードされ、Dockerボリュームにキャッシュされます)*
 
