@@ -1,3 +1,4 @@
+import os
 import logging
 from src.database.client import DatabaseClient
 from src.utils.token_counter import count_tokens
@@ -6,9 +7,9 @@ logger = logging.getLogger(__name__)
 
 # スコアフィルタリングの閾値定数
 # Reranker の relevance_score に対する閾値。これ以下のスコアのチャンクは除外される。
-DEFAULT_RELEVANCE_THRESHOLD = -1.0
+DEFAULT_RELEVANCE_THRESHOLD = float(os.environ.get("DEFAULT_RELEVANCE_THRESHOLD", "-1.0"))
 # クエリがチャンク本文に完全一致する場合の緩和閾値（マニアックな用語の救済用）
-EXACT_MATCH_RELEVANCE_THRESHOLD = -5.0
+EXACT_MATCH_RELEVANCE_THRESHOLD = float(os.environ.get("EXACT_MATCH_RELEVANCE_THRESHOLD", "-5.0"))
 
 
 class WikiSearcher:
