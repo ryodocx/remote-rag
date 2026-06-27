@@ -27,8 +27,10 @@ def _get_searcher():
     """WikiSearcher の遅延初期化。初回呼び出し時のみインスタンスを生成する。"""
     global _searcher
     if _searcher is None:
+        import os
         from src.mcp_server.searcher import WikiSearcher
-        _searcher = WikiSearcher(max_tokens=4000)
+        max_tokens = int(os.environ.get("WIKI_SEARCH_MAX_TOKENS", "4000"))
+        _searcher = WikiSearcher(max_tokens=max_tokens)
     return _searcher
 
 @mcp.tool()
@@ -49,7 +51,12 @@ def search_wiki(query: str, limit: int = 5, metadata_filter: str = None) -> str:
         search_counter.add(1, {"metadata_filter": bool(metadata_filter)})
         
         searcher = _get_searcher()
-        where_clause = f"metadata LIKE '%{metadata_filter}%'" if metadata_filter else None
+        
+        where_clause = None
+        if metadata_filter:
+            safe_filter = metadata_filter.replace("'", "''").replace("\\", "\\\\")
+            where_clause = f"metadata LIKE '%{safe_filter}%'"
+            
         results = searcher.search(query, limit=limit, where=where_clause)
         
         if not results:
@@ -59,18 +66,18 @@ def search_wiki(query: str, limit: int = 5, metadata_filter: str = None) -> str:
         span.set_attribute("search.results_count", len(results))
         
         formatted = []
-    for i, res in enumerate(results, 1):
-        score_text = ""
-        if res.get('relevance_score') is not None:
-            score_text = f"- Relevance Score: {res['relevance_score']:.2f}\n"
-        elif res.get('score') is not None:
-            score_text = f"- FTS Score: {res['score']:.2f}\n"
-        elif res.get('distance') is not None:
-            score_text = f"- Vector Distance: {res['distance']:.2f}\n"
+        for i, res in enumerate(results, 1):
+            score_text = ""
+            if res.get('relevance_score') is not None:
+                score_text = f"- Relevance Score: {res['relevance_score']:.2f}\n"
+            elif res.get('score') is not None:
+                score_text = f"- FTS Score: {res['score']:.2f}\n"
+            elif res.get('distance') is not None:
+                score_text = f"- Vector Distance: {res['distance']:.2f}\n"
+                
+            formatted.append(f"### {res['title']}\n- URL: {res['url']}\n{score_text}- Content:\n{res['text']}")
             
-        formatted.append(f"### {res['title']}\n- URL: {res['url']}\n{score_text}- Content:\n{res['text']}")
-        
-    return "\n\n".join(formatted)
+        return "\n\n".join(formatted)
 
 @mcp.tool()
 def read_wiki_page(page_id: str) -> str:
@@ -99,7 +106,11 @@ def search_by_metadata(key: str, value: str, limit: int = 5) -> str:
         limit: 取得したい最大件数。デフォルトは5件。
     """
     searcher = _get_searcher()
-    where_clause = f"metadata LIKE '%\"{key}\": \"{value}\"%'"
+    
+    safe_key = key.replace("'", "''").replace("\\", "\\\\")
+    safe_value = value.replace("'", "''").replace("\\", "\\\\")
+    where_clause = f"metadata LIKE '%\"{safe_key}\": \"{safe_value}\"%'"
+    
     results = searcher.search(query="", limit=limit, search_type="fts", where=where_clause)
     
     if not results:
