@@ -28,6 +28,7 @@ import (
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/resource"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+	"go.opentelemetry.io/otel/trace"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
@@ -128,7 +129,136 @@ func hashToken(token string) string {
 	return hex.EncodeToString(hasher.Sum(nil))
 }
 
-func introspectToken(ctx context.Context, token string) (bool, error) {
+type IntrospectionResponse struct {
+	Active   bool        `json:"active"`
+	Iss      string      `json:"iss"`
+	Aud      interface{} `json:"aud"`
+	ClientID string      `json:"client_id"`
+	Scope    string      `json:"scope"`
+	Sub      string      `json:"sub"`
+	Email    string      `json:"email"`
+	Groups   interface{} `json:"groups"`
+}
+
+func validateClientConstraints(result *IntrospectionResponse, span trace.Span) bool {
+	expectedIss := os.Getenv("AUTH_FILTER_ISS")
+	if expectedIss != "" && result.Iss != expectedIss {
+		span.SetAttributes(attribute.String("auth.reason", "filtered_by_iss"))
+		return false
+	}
+
+	expectedAud := os.Getenv("AUTH_FILTER_AUD")
+	if expectedAud != "" {
+		audMatched := false
+		switch v := result.Aud.(type) {
+		case string:
+			if v == expectedAud {
+				audMatched = true
+			}
+		case []interface{}:
+			for _, a := range v {
+				if s, ok := a.(string); ok && s == expectedAud {
+					audMatched = true
+					break
+				}
+			}
+		}
+		if !audMatched {
+			span.SetAttributes(attribute.String("auth.reason", "filtered_by_aud"))
+			return false
+		}
+	}
+
+	expectedClient := os.Getenv("AUTH_FILTER_CLIENT_ID")
+	if expectedClient != "" && result.ClientID != expectedClient {
+		span.SetAttributes(attribute.String("auth.reason", "filtered_by_client_id"))
+		return false
+	}
+
+	expectedScope := os.Getenv("AUTH_FILTER_SCOPES")
+	if expectedScope != "" {
+		scopes := strings.Split(result.Scope, " ")
+		scopeMatched := false
+		for _, s := range scopes {
+			if s == expectedScope {
+				scopeMatched = true
+				break
+			}
+		}
+		if !scopeMatched {
+			span.SetAttributes(attribute.String("auth.reason", "filtered_by_scope"))
+			return false
+		}
+	}
+
+	return true
+}
+
+func validateUserConstraints(result *IntrospectionResponse, span trace.Span) bool {
+	domainsStr := os.Getenv("AUTH_FILTER_EMAIL_DOMAINS")
+	emailsStr := os.Getenv("AUTH_FILTER_EMAILS")
+	groupsStr := os.Getenv("AUTH_FILTER_GROUPS")
+	subsStr := os.Getenv("AUTH_FILTER_SUBJECTS")
+
+	if domainsStr == "" && emailsStr == "" && groupsStr == "" && subsStr == "" {
+		return true // No user constraints configured, allow by default
+	}
+
+	if domainsStr != "" {
+		domains := strings.Split(domainsStr, ",")
+		for _, domain := range domains {
+			if strings.HasSuffix(result.Email, strings.TrimSpace(domain)) {
+				return true
+			}
+		}
+	}
+
+	if emailsStr != "" {
+		emails := strings.Split(emailsStr, ",")
+		for _, email := range emails {
+			if result.Email == strings.TrimSpace(email) {
+				return true
+			}
+		}
+	}
+
+	if groupsStr != "" {
+		allowedGroups := strings.Split(groupsStr, ",")
+		switch v := result.Groups.(type) {
+		case string:
+			for _, ag := range allowedGroups {
+				if v == strings.TrimSpace(ag) {
+					return true
+				}
+			}
+		case []interface{}:
+			for _, g := range v {
+				if sg, ok := g.(string); ok {
+					for _, ag := range allowedGroups {
+						if sg == strings.TrimSpace(ag) {
+							return true
+						}
+					}
+				}
+			}
+		}
+	}
+
+	if subsStr != "" {
+		subs := strings.Split(subsStr, ",")
+		for _, sub := range subs {
+			if result.Sub == strings.TrimSpace(sub) {
+				return true
+			}
+		}
+	}
+
+	span.SetAttributes(attribute.String("auth.reason", "filtered_by_user_constraints"))
+	return false
+}
+
+// introspectToken はRFC7662に基づいてトークンの有効性を確認します。
+func introspectToken(ctx context.Context, token string) (*IntrospectionResponse, error) {
 	ctx, span := tracer.Start(ctx, "introspectToken")
 	defer span.End()
 
@@ -180,7 +310,7 @@ func introspectToken(ctx context.Context, token string) (bool, error) {
 
 	if err != nil {
 		span.SetAttributes(attribute.String("error.reason", "max_retries_exceeded"))
-		return false, err
+		return nil, err
 	}
 	if resp != nil && resp.Body != nil {
 		defer resp.Body.Close()
@@ -189,18 +319,16 @@ func introspectToken(ctx context.Context, token string) (bool, error) {
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
 		log.Printf("Introspection failed with status %d: %s", resp.StatusCode, string(body))
-		return false, nil
+		return nil, nil
 	}
 
-	var result struct {
-		Active bool `json:"active"`
-	}
+	var result IntrospectionResponse
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		return false, err
+		return nil, err
 	}
 
 	span.SetAttributes(attribute.Bool("introspection.active", result.Active))
-	return result.Active, nil
+	return &result, nil
 }
 
 func authHandler(w http.ResponseWriter, r *http.Request) {
@@ -232,7 +360,7 @@ func authHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	span.SetAttributes(attribute.Bool("cache.hit", false))
 
-	active, err := introspectToken(ctx, token)
+	resp, err := introspectToken(ctx, token)
 	if err != nil {
 		log.Printf("Error introspecting token: %v", err)
 		span.RecordError(err)
@@ -240,14 +368,16 @@ func authHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if active {
-		cacheInstance.Set(ctx, tokenHash, "valid", 60*time.Second)
-		span.SetAttributes(attribute.String("auth.status", "authorized"))
-		if authCounter != nil {
-			authCounter.Add(ctx, 1, metric.WithAttributes(attribute.String("status", "authorized")))
+	if resp != nil && resp.Active {
+		if validateClientConstraints(resp, span) && validateUserConstraints(resp, span) {
+			cacheInstance.Set(ctx, tokenHash, "valid", 60*time.Second)
+			span.SetAttributes(attribute.String("auth.status", "authorized"))
+			if authCounter != nil {
+				authCounter.Add(ctx, 1, metric.WithAttributes(attribute.String("status", "authorized")))
+			}
+			w.WriteHeader(http.StatusOK)
+			return
 		}
-		w.WriteHeader(http.StatusOK)
-		return
 	}
 
 	span.SetAttributes(attribute.String("auth.status", "unauthorized"))

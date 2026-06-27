@@ -77,6 +77,27 @@ export MCP_REMOTE_URL=https://your-caddy-server-domain
 
 ---
 
+## 3. (オプション) ユーザー属性に基づくフィルタリング設定
+
+サーバー側(`auth-helper`)で、特定の「メールドメイン」や「グループ」に所属するユーザーのみアクセスを許可するフィルタリングを行いたい場合、Oktaの Introspection レスポンスに `email` や `groups` を含める必要があります。
+
+### Authorization Server の設定 (カスタムクレームの追加)
+1. **Security > API > Authorization Servers** に移動し、使用しているサーバー（例: `default`）をクリックします。
+2. **Claims** タブを開き、「**Add Claim**」をクリックします。
+3. `email` クレームの追加:
+   - **Name**: `email`
+   - **Include in token type**: `Access Token` / `Always` (または条件指定)
+   - **Value type**: `Expression`
+   - **Value**: `user.email`
+4. `groups` クレームの追加:
+   - **Name**: `groups`
+   - **Include in token type**: `Access Token` / `Always`
+   - **Value type**: `Groups`
+   - **Filter**: `Matches regex` `.*` (すべてのグループを含める場合)
+5. 保存後、`auth-helper` の環境変数（`AUTH_FILTER_EMAIL_DOMAINS` や `AUTH_FILTER_GROUPS` など）を設定することでフィルタリングが有効になります。
+
+---
+
 ## トラブルシューティング
 
 - **`Introspection failed` エラーが発生する場合**:

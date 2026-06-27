@@ -71,6 +71,18 @@ export MCP_REMOTE_URL=https://your-caddy-server-domain
 
 ---
 
+## 3. (オプション) ユーザー属性に基づくフィルタリング設定
+
+サーバー側(`auth-helper`)で、特定の「ユーザーID(`sub`)」や「メールドメイン」に基づいたアクセス制御を行うことができます。
+
+### GitLabにおけるクレームの制約について
+GitLabの Token Introspection API は仕様上、デフォルトでは `client_id`、`username`、`sub` などの情報を返却します。
+もし `email` によるフィルタリング（`AUTH_FILTER_EMAIL_DOMAINS` など）を行いたい場合は、クライアント側（Bridge CLI）がトークンを取得する際の要求スコープに `email` を含める必要があります。（GitLab側のApplication設定でも `email` スコープにチェックを入れてください）
+
+GitLabの場合、グループ情報をIntrospectionレスポンスに直接含めることは標準ではサポートされていないケースが多いため、エンタープライズ版でのSAML/OIDCグループ同期を利用するか、より確実な **`AUTH_FILTER_SUBJECTS`** (一意なユーザーID `sub` による制御) の利用を推奨します。
+
+---
+
 ## トラブルシューティング
 
 - **`Introspection failed` エラーが発生する場合**:
