@@ -28,6 +28,20 @@ services:
       - PYTHONUNBUFFERED=1
       - OTEL_EXPORTER_OTLP_ENDPOINT=${OTEL_EXPORTER_OTLP_ENDPOINT:-}
 
+  rest-api:
+    build: ../server/core
+    container_name: rest-api
+    volumes:
+      - ../data:/app/data
+      - huggingface_cache:/home/appuser/.cache/huggingface
+    command: uvicorn src.api.search_api:app --host 0.0.0.0 --port 8010
+    ports:
+      - "8004:8010" # REST API (Custom GPTs / Actions)
+    environment:
+      - PYTHONUNBUFFERED=1
+      - WIKI_SEARCH_MAX_TOKENS=${WIKI_SEARCH_MAX_TOKENS:-4000}
+      - OTEL_EXPORTER_OTLP_ENDPOINT=${OTEL_EXPORTER_OTLP_ENDPOINT:-}
+
   caddy:
     image: caddy:2-alpine
     container_name: caddy-proxy
@@ -40,6 +54,7 @@ services:
     depends_on:
       - auth-helper
       - mcp-server
+      - rest-api
 
   valkey:
     image: valkey/valkey:8-alpine

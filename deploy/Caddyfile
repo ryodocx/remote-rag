@@ -12,12 +12,17 @@
 }
 
 :8080 {
-    # 認証ヘルパーへリクエストを転送し、認証判定を行う
+    # 全リクエストに対して認証ヘルパーへの検証を実行する
     forward_auth auth-helper:8000 {
         uri /auth
     }
 
-    # 認証が通った場合、MCPサーバーへリバースプロキシ
+    # REST API (Custom GPTs / Actions 向け) — /api/* を rest-api コンテナへ転送
+    handle /api/* {
+        reverse_proxy rest-api:8010
+    }
+
+    # MCP Server (Bridge CLI / デスクトップ AI エージェント向け)
     # Bridge CLIからの初期接続 (ルートへのリクエスト) を /sse に書き換える
     @root {
         path /
@@ -26,7 +31,7 @@
 
     reverse_proxy mcp-server:8000 {
         header_up Host {host}
-        
+
         # SSE (Server-Sent Events) 対応のため、バッファリングを完全に無効化する
         flush_interval -1
     }
