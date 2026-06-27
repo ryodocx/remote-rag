@@ -93,7 +93,26 @@ export MCP_REMOTE_URL=https://your-caddy-server-domain
 
 ---
 
-## 3. (オプション) ユーザー属性に基づくフィルタリング設定
+## 3. Custom GPTs / Actions を利用する場合の設定 (Web UI連携)
+
+ChatGPT の **Custom GPTs (Actions)** 経由で RRAG にアクセスさせたい場合、Okta 上で以下の設定を追加で行う必要があります。
+
+### 3.1. Web アプリケーションの作成 (または既存アプリへの Redirect URI 追加)
+Custom GPTs の OAuth 連携は **Web アプリケーション (Confidential Client)** として動作します。
+
+1. **Applications > Applications** に移動し、「**Create App Integration**」をクリックします。
+2. Sign-in method で **OIDC - OpenID Connect** を選択します。
+3. Application type で **Web Application** を選択し、「Next」をクリックします。
+   *(※ 既存のWebアプリがある場合は、その設定を開いて Redirect URI を追加するだけでも構いません)*
+4. **Sign-in redirect URIs** に、OpenAI から提供される Callback URL を追加します。
+   - 例: `https://chat.openai.com/aip/g-xxxxxxxx/oauth/callback`
+5. 保存後、発行された **Client ID** と **Client Secret** を控えます。これを Custom GPTs の Authentication 画面に設定します。
+
+> **参考:** Custom GPTs 側の詳細な設定手順については、[CHATGPT_CUSTOM_GPTS_SETUP.md](CHATGPT_CUSTOM_GPTS_SETUP.md) を参照してください。
+
+---
+
+## 4. (オプション) ユーザー属性に基づくフィルタリング設定
 
 サーバー側(`auth-helper`)で、特定の「メールドメイン」や「グループ」に所属するユーザーのみアクセスを許可するフィルタリングを行いたい場合、Oktaのトークン（または Introspection レスポンス）に `email` や `groups` を含める必要があります。
 
