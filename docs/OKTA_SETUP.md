@@ -26,7 +26,13 @@ OAUTH_JWKS_URL=https://{your-okta-domain}/oauth2/default/v1/keys
 ```
 
 ### パターンB: Introspection モード (オプション)
-Opaqueトークンを利用したい場合や、キャッシュベースの検証を行いたい場合はこちらのモードを利用します。この場合、Okta管理画面で「API Services」アプリケーションを作成し、Client Secretを発行する必要があります。
+Opaqueトークンを利用せざるを得ない場合や、強制失効・キャッシュベースの検証を行いたい場合はこちらのモードを利用します。この場合、Okta管理画面で「API Services」アプリケーションを作成し、Client Secretを発行する必要があります。
+
+> [!NOTE]
+> **なぜOpaqueトークンを利用するのか？ (Okta特有の制約)**
+> OktaでJWKS検証が可能な「JWT形式のアクセストークン」を発行するには、Oktaの有償オプションである **API Access Management (Custom Authorization Server)** が必要です（例: `/oauth2/default` などのエンドポイント）。
+> 
+> もしこのオプションを契約しておらず、標準の **Org Authorization Server**（例: `/oauth2/v1/token` などのルートエンドポイント）を使用する場合、発行されるアクセストークンは必ず **Opaqueトークン（ランダムな文字列）** になります。OpaqueトークンはローカルでのJWKS署名検証が不可能なため、この「Introspection モード」を使用して Okta サーバーへ直接有効性を問い合わせる必要があります。
 
 1. **Applications > Applications** に移動し、「**Create App Integration**」をクリック。
 2. **API Services** を選択。
