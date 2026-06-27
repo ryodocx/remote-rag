@@ -26,11 +26,21 @@ func main() {
 		os.Exit(1)
 	}
 
-	// 1. 認証を実行し、アクセストークンを取得
-	token, err := GetValidToken()
+	// 1. 認証を実行し、トークンを取得
+	tokenData, err := GetValidToken()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to get auth token: %v\n", err)
 		os.Exit(1)
+	}
+
+	useIDToken := os.Getenv("USE_ID_TOKEN") == "true"
+	token := tokenData.AccessToken
+	if useIDToken {
+		if tokenData.IDToken == "" {
+			fmt.Fprintf(os.Stderr, "Warning: USE_ID_TOKEN is true, but no ID token was found. Falling back to access token.\n")
+		} else {
+			token = tokenData.IDToken
+		}
 	}
 
 	fmt.Fprintf(os.Stderr, "Initial connection to remote MCP server established.\n")
@@ -91,7 +101,7 @@ func main() {
 								if strings.HasPrefix(endpointURI, "http") {
 									pURL = endpointURI
 								} else {
-									// remoteURL が https://domain/v1/mcp/sse の場合、正しく https://domain/v1/mcp/messages 等に解決する
+									// remoteURL が https://domain/mcp/sse の場合、正しく https://domain/mcp/messages 等に解決する
 									parsedRemote, err := url.Parse(remoteURL)
 									if err == nil {
 										parsedEndpoint, _ := url.Parse(endpointURI)
@@ -133,7 +143,11 @@ func main() {
 			}
 			
 			// Token might be expired, get a valid one
-			token, _ = GetValidToken()
+			tokenData, _ = GetValidToken()
+			token = tokenData.AccessToken
+			if useIDToken && tokenData.IDToken != "" {
+				token = tokenData.IDToken
+			}
 			
 			time.Sleep(retryDelay)
 			retryDelay *= 2

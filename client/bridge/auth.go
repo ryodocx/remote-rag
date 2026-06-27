@@ -36,9 +36,9 @@ func getAccountName() string {
 	return "oauth-token"
 }
 
-// TokenData はアクセストークンおよびリフレッシュトークンの情報を保持し、JSONとしてシリアライズしてKeychainに保存されます
 type TokenData struct {
 	AccessToken  string    `json:"access_token"`
+	IDToken      string    `json:"id_token,omitempty"`
 	RefreshToken string    `json:"refresh_token,omitempty"`
 	Expiry       time.Time `json:"expiry"`
 }
@@ -147,7 +147,7 @@ func openBrowser(url string) error {
 }
 
 // Authenticate はブラウザを開いて認可サーバーでユーザーを認証させ、コールバックを受け取ってアクセストークンを取得します
-func Authenticate() (string, error) {
+func Authenticate() (TokenData, error) {
 	fmt.Fprintf(os.Stderr, "Authenticating with Identity Provider...\n")
 	
 	conf, err := getOAuth2Config()
@@ -156,12 +156,12 @@ func Authenticate() (string, error) {
 	}
 	verifier, challenge, err := generatePKCE()
 	if err != nil {
-		return "", fmt.Errorf("failed to generate PKCE: %v", err)
+		return TokenData{}, fmt.Errorf("failed to generate PKCE: %v", err)
 	}
 
 	stateBytes := make([]byte, 16)
 	if _, err := rand.Read(stateBytes); err != nil {
-		return "", fmt.Errorf("failed to generate state: %v", err)
+		return TokenData{}, fmt.Errorf("failed to generate state: %v", err)
 	}
 	state := hex.EncodeToString(stateBytes)
 
@@ -172,7 +172,7 @@ func Authenticate() (string, error) {
 	}
 	listener, err := net.Listen("tcp", "127.0.0.1:"+portStr)
 	if err != nil {
-		return "", fmt.Errorf("failed to bind local port: %v", err)
+		return TokenData{}, fmt.Errorf("failed to bind local port: %v", err)
 	}
 	defer listener.Close()
 
@@ -220,29 +220,36 @@ func Authenticate() (string, error) {
 			oauth2.SetAuthURLParam("code_verifier", verifier),
 		)
 		if err != nil {
-			return "", err
+			return TokenData{}, err
 		}
 		
-		if err := saveToken(token); err != nil {
+		var idToken string
+		if idTokenRaw := token.Extra("id_token"); idTokenRaw != nil {
+			idToken = idTokenRaw.(string)
+		}
+		
+		data := TokenData{
+			AccessToken:  token.AccessToken,
+			IDToken:      idToken,
+			RefreshToken: token.RefreshToken,
+			Expiry:       token.Expiry,
+		}
+		
+		if err := saveTokenData(data); err != nil {
 			fmt.Fprintf(os.Stderr, "Warning: failed to save token: %v\n", err)
 		}
-		return token.AccessToken, nil
+		return data, nil
 	case err := <-errCh:
 		srv.Shutdown(context.Background())
-		return "", err
+		return TokenData{}, err
 	case <-time.After(5 * time.Minute):
 		srv.Shutdown(context.Background())
-		return "", fmt.Errorf("authentication timed out")
+		return TokenData{}, fmt.Errorf("authentication timed out")
 	}
 }
 
-// saveToken は取得したトークン情報をJSONにシリアライズし、OSネイティブのKeychainに暗号化して保存します
-func saveToken(tok *oauth2.Token) error {
-	data := TokenData{
-		AccessToken:  tok.AccessToken,
-		RefreshToken: tok.RefreshToken,
-		Expiry:       tok.Expiry,
-	}
+// saveTokenData は取得したトークン情報をJSONにシリアライズし、OSネイティブのKeychainに暗号化して保存します
+func saveTokenData(data TokenData) error {
 	bytes, err := json.Marshal(data)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to marshal token: %v\n", err)
@@ -257,7 +264,7 @@ func saveToken(tok *oauth2.Token) error {
 }
 
 // GetValidToken はKeychainからトークンを取得し、有効期限を確認します。トークンが存在しないか期限切れの場合は再認証を促します。
-func GetValidToken() (string, error) {
+func GetValidToken() (TokenData, error) {
 	secret, err := keyring.Get(serviceName, getAccountName())
 	if err != nil {
 		// Keychainにトークンが見つからない場合は新規認証を実行
@@ -295,12 +302,27 @@ func GetValidToken() (string, error) {
 			return Authenticate() // リフレッシュ失敗時は再認証
 		}
 		
+		var idToken string
+		if idTokenRaw := newTok.Extra("id_token"); idTokenRaw != nil {
+			idToken = idTokenRaw.(string)
+		} else {
+			// IDトークンが更新されない場合は既存のものを引き継ぐ
+			idToken = data.IDToken
+		}
+		
+		newData := TokenData{
+			AccessToken:  newTok.AccessToken,
+			IDToken:      idToken,
+			RefreshToken: newTok.RefreshToken,
+			Expiry:       newTok.Expiry,
+		}
+		
 		// リフレッシュ成功時、新しいトークンを保存
-		if err := saveToken(newTok); err != nil {
+		if err := saveTokenData(newData); err != nil {
 			fmt.Fprintf(os.Stderr, "Warning: failed to save refreshed token: %v\n", err)
 		}
-		return newTok.AccessToken, nil
+		return newData, nil
 	}
 
-	return data.AccessToken, nil
+	return data, nil
 }
