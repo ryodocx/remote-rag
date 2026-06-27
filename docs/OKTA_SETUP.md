@@ -9,48 +9,34 @@ Oktaを利用する場合、アプリケーション（App Integration）を作�
 
 ## 1. サーバー側（Auth Proxy）の設定
 
-サーバーの `auth-helper` コンテナが、Okta が発行したトークンの有効性を検証するための設定です。
-RRAGはローカルでの **JWKSモード (推奨)** と、Oktaへ直接問い合わせる **Introspectionモード** の2つをサポートしています。
+サーバーの `auth-helper` コンテナは、JWKSモードとIntrospectionモードの両方を**同時**に提供します。用途に応じて環境変数を設定してください。
 
-### パターンA: JWKS モード (推奨・設定が簡単)
-JWKSモードを利用する場合、Okta側での追加のアプリケーション作成は**不要**です。
-`deploy/.env` に Okta の JWKS URL を設定するだけで完了します。
+`deploy/.env` に以下の環境変数を設定します。
 
 ```env
-# 検証モードを JWKS に設定
-OAUTH_VALIDATION_MODE=jwks
+# --- JWKS 共通設定 ---
+# OktaのAuthorization ServerのJWKSエンドポイント
+OAUTH_JWKS_URL=https://{your-okta-domain}/oauth2/v1/keys
 
-# OktaのカスタムAuthorization ServerのJWKSエンドポイント
-# (デフォルトのAuthorization Serverを使用する場合の例)
-OAUTH_JWKS_URL=https://{your-okta-domain}/oauth2/default/v1/keys
-```
+# --- /id_token/* ルート用の設定 (ローカルツール向け) ---
+# ローカルツール用には Client ID の一致確認 (aud) が必須です
+OAUTH_CLIENT_ID={Native App Client ID}
 
-### パターンB: Introspection モード (オプション)
-Opaqueトークンを利用せざるを得ない場合や、強制失効・キャッシュベースの検証を行いたい場合はこちらのモードを利用します。この場合、Okta管理画面で「API Services」アプリケーションを作成し、Client Secretを発行する必要があります。
+# --- /jwt/* ルート用の設定 (JWTアクセストークン向け) ---
+# APIのResource URIを指定します (例: api://default)
+AUTH_EXPECTED_AUD=api://default
 
-> [!NOTE]
-> **なぜOpaqueトークンを利用するのか？ (Okta特有の制約)**
-> OktaでJWKS検証が可能な「JWT形式のアクセストークン」を発行するには、Oktaの有償オプションである **API Access Management (Custom Authorization Server)** が必要です（例: `/oauth2/default` などのエンドポイント）。
-> 
-> **※ オプション契約の有無の見分け方:**
-> 1. **管理画面での確認**: Okta管理画面で **Security > API** を開いた際、**「Authorization Servers」** というタブが存在し、そこに `default` などのサーバーがリストされていれば契約あり（JWKSモード利用可能）です。タブ自体が存在しない場合は未契約です。
-> 2. **トークン形式での確認**: 発行されたアクセストークンが `eyJ...` から始まるドット(`.`)区切りの文字列であれば JWT ですが、40文字程度のランダムな文字列であれば Opaqueトークン です。
-> 
-> もしこのオプションを契約しておらず、標準の **Org Authorization Server**（例: `/oauth2/v1/token` などのルートエンドポイント）を使用する場合、発行されるアクセストークンは必ず **Opaqueトークン** になります。OpaqueトークンはローカルでのJWKS署名検証が不可能なため、この「Introspection モード」を使用して Okta サーバーへ直接有効性を問い合わせる必要があります。
-
-1. **Applications > Applications** に移動し、「**Create App Integration**」をクリック。
-2. **API Services** を選択。
-3. アプリケーション名を入力して作成。
-4. アプリ作成後、**Client ID** と **Client Secret** を控えます。
-
-`deploy/.env` に以下のように設定します。
-
-```env
-OAUTH_VALIDATION_MODE=introspect
-OAUTH_INTROSPECT_URL=https://{your-okta-domain}/oauth2/default/v1/introspect
-OAUTH_CLIENT_ID={API Services App Client ID}
+# --- /introspect/* ルート用の設定 (Opaqueトークン向け) ---
+OAUTH_INTROSPECT_URL=https://{your-okta-domain}/oauth2/v1/introspect
 OAUTH_CLIENT_SECRET={API Services App Client Secret}
 ```
+
+> [!IMPORTANT]
+> **トークンの種類に応じたURLの使い分け**
+> CaddyはアクセスするURLのプレフィックスによって検証方法を動的に切り替えます。
+> - **`/id_token/*`**: ローカルツール (Bridge CLI) から送信される **IDトークン** をJWKSで検証します (`aud` は `OAUTH_CLIENT_ID` と一致すること)。
+> - **`/jwt/*`**: API Access Management等で発行された **JWTアクセストークン** をJWKSで検証します (`aud` は `AUTH_EXPECTED_AUD` と一致すること)。
+> - **`/introspect/*`**: Org Authorization Serverで発行された **Opaqueトークン** をOktaへ問い合わせて検証します。
 
 ---
 
@@ -85,8 +71,11 @@ export OAUTH_CLIENT_ID={Native App Client ID}
 # デフォルトで 18080 が使用されるため、18080を設定した場合はこの環境変数の指定は不要です。
 # export OAUTH_REDIRECT_PORT=18080
 
-# 接続先MCPサーバーのURL
-export MCP_REMOTE_URL=https://your-caddy-server-domain
+# IDトークンを送信するための設定（/id_token/* ルート用）
+export USE_ID_TOKEN=true
+
+# 接続先MCPサーバーのURL (/id_token/mcp/* プレフィックスを指定)
+export MCP_REMOTE_URL=https://your-caddy-server-domain/id_token/mcp/sse
 ```
 
 *(Cursor 等の AI エージェントは、起動したターミナルの環境変数を引き継ぐか、設定ファイル内で環境変数を指定できます。)*

@@ -18,7 +18,7 @@
 
 ### A. ChatGPT (Custom GPTs / Actions)
 RRAG が AI チャット環境において最もスムーズに連携できるのが、ChatGPT Plus / Team / Enterprise ユーザー向けの **Custom GPTs** です。
-- **設定方法**: RRAG サーバーの `/v1/api/openapi.json` を GPT Builder にインポートし、Authentication で `OAuth` を選択して IdP の情報を設定します。
+- **設定方法**: RRAG サーバーの `/api/openapi.json` を GPT Builder にインポートし、Authentication で `OAuth` を選択して IdP の情報を設定します。
 - **詳細手順**: 専用のセットアップガイド [CHATGPT_CUSTOM_GPTS_SETUP.md](CHATGPT_CUSTOM_GPTS_SETUP.md) をご参照ください。
 
 ### B. Microsoft Copilot (Copilot Studio)
@@ -49,7 +49,7 @@ Claude や Gemini の強力なモデルを利用して社内ナレッジを検�
 - **Make**: 「Custom App」を作成するか、または汎用の「HTTP > Make an OAuth 2.0 request」モジュールを利用することで、IdP と連携したセキュアなリクエストが可能です。
 
 ### B. Microsoft Power Automate
-- Copilot Studio と同様に、Power Automate 内で **「カスタム コネクタ」** を作成し、RRAG の OpenAPI (`/v1/api/openapi.json`) をインポートします。
+- Copilot Studio と同様に、Power Automate 内で **「カスタム コネクタ」** を作成し、RRAG の OpenAPI (`/api/openapi.json`) をインポートします。
 - セキュリティタブで OAuth 2.0 認証 (Azure AD または Generic OAuth) を構成することで、フロー内のステップとして検索アクションを利用できます。
 
 ### C. n8n
@@ -60,10 +60,10 @@ Claude や Gemini の強力なモデルを利用して社内ナレッジを検�
 ## 4. Web アプリ・社内ポータル構築ツールとの連携
 
 ### A. Dify / LangFlow 等の生成 AI プラットフォーム
-これらのプラットフォームは、外部の OpenAPI スキーマを読み込んで独自の「ツール」として定義する機能を備えています。RRAG の `/v1/api/openapi.json` をインポートし、OAuth2 または API Key 認証を設定することで、自作のチャットボットやエージェントフロー内に検索を組み込めます。
+これらのプラットフォームは、外部の OpenAPI スキーマを読み込んで独自の「ツール」として定義する機能を備えています。RRAG の `/api/openapi.json` をインポートし、OAuth2 または API Key 認証を設定することで、自作のチャットボットやエージェントフロー内に検索を組み込めます。
 
 ### B. Open WebUI / LibreChat 等のオープンソースチャット
-Open WebUI の Functions 機能などを利用して、RRAG の REST API (`/v1/api/search`) を呼び出す Python スクリプトを記述することで、検索結果をチャットコンテキストに統合できます。
+Open WebUI の Functions 機能などを利用して、RRAG の REST API (`/api/search`) を呼び出す Python スクリプトを記述することで、検索結果をチャットコンテキストに統合できます。
 
 ### C. Retool / Appsmith / ToolJet / Budibase 等のローコード基盤
 これらの「社内業務ツール構築プラットフォーム (Internal Tool Builders)」を利用して、カスタムナレッジ検索 UI やダッシュボードを構築できます。

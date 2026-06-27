@@ -60,19 +60,23 @@ sequenceDiagram
     AI->>Bridge: JSON-RPC (stdin)
     
     Note over Bridge, MCP: 3. MCP通信 (HTTP/SSE)
-    Bridge->>Caddy: POST /messages<br/>Authorization: Bearer <token>
     
-    Caddy->>Auth: 認証委譲 (forward_auth)
-    
-    alt JWKSモード (推奨)
-        Auth->>Auth: ローカルで署名・exp検証
-    else Introspectionモード
-        Auth->>Auth: トークンのハッシュ値(SHA-256)算出
+    alt ローカルツールの場合 (IDトークン)
+        Bridge->>Caddy: POST /id_token/mcp/messages<br/>Authorization: Bearer <ID Token>
+        Caddy->>Auth: 認証委譲 (forward_auth /auth/jwks?expected_aud=...)
+        Auth->>Auth: ローカルで署名・aud・exp検証
+    else 外部APIの場合 (JWTアクセストークン)
+        AI->>Caddy: GET /jwt/api/...<br/>Authorization: Bearer <JWT Token>
+        Caddy->>Auth: 認証委譲 (forward_auth /auth/jwks?expected_aud=...)
+        Auth->>Auth: ローカルで署名・aud・exp検証
+    else 外部APIの場合 (Opaqueトークン)
+        AI->>Caddy: GET /introspect/api/...<br/>Authorization: Bearer <Opaque Token>
+        Caddy->>Auth: 認証委譲 (forward_auth /auth/introspect)
         Auth->>Redis: GET <hash>
         alt キャッシュミス
             Auth->>IdP: POST /introspect (Basic Auth)
             IdP-->>Auth: active: true
-            Auth->>Redis: SETEX <hash> 60 "valid"
+            Auth->>Redis: SETEX <hash> 動的TTL "valid"
         end
     end
     
@@ -94,14 +98,14 @@ sequenceDiagram
 
 ### 3.2 Caddy (フロントプロキシ)
 *   **役割**: 外部からのトラフィックの入り口。HTTPS化（自動証明書）やリバースプロキシを担います。
-*   **認証の関所**: `forward_auth` ディレクティブを用い、すべてのリクエストをバックエンドの Auth Helper に問い合わせます。
+*   **プレフィックス・ルーティング**: クライアントはアクセス先の先頭に `/id_token/`, `/jwt/`, または `/introspect/` を付与します。Caddyはこれを見て Auth Helper の対応する検証エンドポイントへ検証を依頼します。さらに、Caddyの環境変数展開機能を利用し、Go側に必要な情報をクエリパラメータとして動的に渡します。検証成功後にプレフィックスを削除してバックエンドへ転送します。これにより、すべてのバックエンドエンドポイントで各種認証方式を安全かつ明示的に利用できます。
 *   **ストリーミング最適化**: MCPのSSE通信が途切れないよう、バッファリングを完全に無効化（`flush_interval -1`）しています。
 
 ### 3.3 Auth Helper (認証サイドカー)
-*   **役割**: 渡された Bearer トークンが有効かどうかを検証し、細やかなアクセス制御を行います。
-*   **検証モード**:
-    *   **JWKS モード (推奨)**: 起動時にIdPからJWKS（公開鍵）を取得し、リクエストごとにJWTの署名と有効期限（`exp`）をローカルで高速に検証します。IdPへのネットワーク通信が不要なため、最も低レイテンシなアプローチです。ただし、トークンの明示的な失効（Revocation）は `exp` 到達まで検知できない点に留意してください。
-    *   **Introspection モード**: Opaque Tokenを扱う場合などに、RFC 7662を利用してIdPへトークンの有効性（`active: true`）を直接問い合わせます。
+*   **役割**: 渡された Bearer トークンが有効かどうかを検証し、細やかなアクセス制御を行います。同時に両方の検証エンドポイントを提供します。
+*   **検証エンドポイント**:
+    *   **`/auth/jwks`**: ローカル署名検証。URLクエリパラメータ `expected_aud` を必須として受け取り、トークンの `aud` クレームと完全に一致するかをチェックします。Caddy側がこのパラメータを制御することで、1つのハンドラーでIDトークンとJWTアクセストークンの両方を安全に検証します。
+    *   **`/auth/introspect`**: Opaqueトークン等を用いた RFC 7662 問い合わせ検証。
 *   **属性ベースのアクセス制御 (ABAC)**: トークンのペイロードに含まれるクレーム（`iss`, `aud`, `client_id`, `scope` など）を厳格に検証するフェーズ1と、ユーザー固有の属性（`email` や `groups`, `sub` など）に基づいてフィルタリングするフェーズ2を備えています。複数の条件を設定した場合、それらはすべて **AND条件** として評価され、条件を一つでも満たさないリクエストは拒否されます。
 
 ### 3.4 Redis / Valkey (キャッシュストア)
