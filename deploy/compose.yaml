@@ -23,11 +23,10 @@ services:
     command: uvicorn src.api.ingest_api:app --host 0.0.0.0 --port 8001
     ports:
       - "127.0.0.1:8001:8001"
+      - "8003:8002" # Metrics
     environment:
       - PYTHONUNBUFFERED=1
       - OTEL_EXPORTER_OTLP_ENDPOINT=${OTEL_EXPORTER_OTLP_ENDPOINT:-}
-    ports:
-      - "8003:8002" # Metrics
 
   caddy:
     image: caddy:2-alpine

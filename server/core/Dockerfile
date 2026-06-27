@@ -21,7 +21,7 @@ USER appuser
 
 # Copy the source code with correct ownership
 COPY --chown=appuser:appuser src/ src/
-COPY --chown=appuser:appuser search_cli.py .
+COPY --chown=appuser:appuser scripts/ scripts/
 
 # By default, drop into a bash shell so users can run CLI, ingestion, or the MCP server
 CMD ["bash"]
