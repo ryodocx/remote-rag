@@ -17,6 +17,7 @@ spec:
         app.kubernetes.io/name: {{ include "remote-rag.name" . }}-mcp-server
         app.kubernetes.io/instance: {{ .Release.Name }}
     spec:
+      serviceAccountName: {{ include "remote-rag.serviceAccountName" . }}
       containers:
         - name: mcp-server
           image: "{{ .Values.mcpServer.image.repository }}:{{ .Values.mcpServer.image.tag }}"

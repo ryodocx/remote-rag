@@ -16,3 +16,14 @@
 {{- end }}
 {{- end }}
 {{- end }}
+
+{{/*
+Create the name of the service account to use
+*/}}
+{{- define "remote-rag.serviceAccountName" -}}
+{{- if .Values.serviceAccount.create }}
+{{- default (include "remote-rag.fullname" .) .Values.serviceAccount.name }}
+{{- else }}
+{{- default "default" .Values.serviceAccount.name }}
+{{- end }}
+{{- end }}

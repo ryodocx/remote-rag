@@ -17,6 +17,7 @@ spec:
         app.kubernetes.io/name: {{ include "remote-rag.name" . }}-ingest-api
         app.kubernetes.io/instance: {{ .Release.Name }}
     spec:
+      serviceAccountName: {{ include "remote-rag.serviceAccountName" . }}
       containers:
         - name: ingest-api
           image: "{{ .Values.ingestApi.image.repository }}:{{ .Values.ingestApi.image.tag }}"
