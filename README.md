@@ -246,6 +246,9 @@ If you don't need network access and just want to search local data, run the Pyt
 | **[Operations Manual](docs/OPERATIONS.md)** | Server environment variables, deployment steps, and troubleshooting. |
 | **[Okta Setup Guide](docs/OKTA_SETUP.md)** | App registration and custom claims config for Okta (OAuth 2.0 / OIDC). |
 | **[GitLab Setup Guide](docs/GITLAB_SETUP.md)** | App registration and claim details for GitLab (gitlab.com / Self-hosted). |
+| **[ChatGPT Setup Guide](docs/CHATGPT_CUSTOM_GPTS_SETUP.md)** | App registration and Custom GPTs (Actions) configuration. |
+| **[Copilot Studio Setup Guide](docs/COPILOT_STUDIO_SETUP.md)** | Custom Connector and OAuth 2.0 configuration for Microsoft Copilot Studio. |
+| **[Web App / REST API Integration Guide](docs/WEB_APP_INTEGRATION.md)** | How to integrate REST API with web apps like Dify, Zapier, and Retool. |
 | **[AI Models Guide](docs/MODELS.md)** | How to swap Embedding/Reranker models, with comparisons for quality, speed, and memory usage. |
 | **[Development Guide](docs/DEVELOPMENT.md)** | Build instructions, local environments, and testing AI models. |
 

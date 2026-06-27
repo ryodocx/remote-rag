@@ -256,7 +256,9 @@ OAUTH_JWKS_URL=
 | **[運用手順書](docs/OPERATIONS.md)** | サーバー環境変数の設定、デプロイ手順、認証エラー等のトラブルシューティング。 |
 | **[Okta設定例](docs/OKTA_SETUP.md)** | Okta (OAuth 2.0 / OIDC) を認証基盤として利用する場合のアプリケーション登録と設定手順。 |
 | **[GitLab設定例](docs/GITLAB_SETUP.md)** | GitLab (gitlab.com または セルフホスト版) を認証基盤として利用する場合のアプリケーション登録と設定手順。 |
-| **[AIチャット Web UI連携ガイド](docs/WEBUI_INTEGRATION.md)** | ChatGPT, Claude, Gemini等のブラウザ版Web UIからの連携の仕組みと回避策について。 |
+| **[ChatGPT設定例](docs/CHATGPT_CUSTOM_GPTS_SETUP.md)** | ChatGPT Custom GPTs (Actions) でRRAGを利用する場合のアプリケーション登録と設定手順。 |
+| **[Copilot Studio設定例](docs/COPILOT_STUDIO_SETUP.md)** | Microsoft Copilot Studio のカスタムコネクタを利用して連携する場合の設定手順。 |
+| **[Webアプリ / REST API連携ガイド](docs/WEB_APP_INTEGRATION.md)** | ChatGPT以外のWebアプリケーション (Dify, Zapier, Retool 等) からREST API連携する仕組みについて。 |
 | **[AIモデル設定ガイド](docs/MODELS.md)** | 環境変数を用いたAIモデル（Embedding/Reranker）の柔軟な差し替え方法と、品質・処理速度・メモリ消費の比較表。 |
 | **[開発者ガイド](docs/DEVELOPMENT.md)** | 各コンポーネントのビルド手法、ローカル仮想環境の構築、AIモデル変更時の動作テスト方法。 |
 
