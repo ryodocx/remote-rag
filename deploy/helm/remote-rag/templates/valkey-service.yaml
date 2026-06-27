@@ -1,0 +1,19 @@
+{{- if .Values.valkey.enabled -}}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "remote-rag.fullname" . }}-valkey
+  labels:
+    app.kubernetes.io/name: {{ include "remote-rag.name" . }}-valkey
+    app.kubernetes.io/instance: {{ .Release.Name }}
+spec:
+  type: {{ .Values.valkey.service.type }}
+  ports:
+    - port: {{ .Values.valkey.service.port }}
+      targetPort: valkey
+      protocol: TCP
+      name: valkey
+  selector:
+    app.kubernetes.io/name: {{ include "remote-rag.name" . }}-valkey
+    app.kubernetes.io/instance: {{ .Release.Name }}
+{{- end }}
