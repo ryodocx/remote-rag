@@ -135,3 +135,19 @@ async def get_task_status(task_id: str):
     if task_id not in TASK_STORE:
         raise HTTPException(status_code=404, detail="Task not found")
     return {"task_id": task_id, **TASK_STORE[task_id]}
+
+@app.get("/healthz")
+async def healthz():
+    return {"status": "ok"}
+
+@app.get("/readyz")
+async def readyz():
+    try:
+        # DBへの疎通確認
+        client = DatabaseClient()
+        # 簡易的なテーブルリスト取得等でエラーが出ないかチェック
+        client.get_table()
+        return {"status": "ready"}
+    except Exception as e:
+        logger.error(f"Readiness check failed: {e}")
+        raise HTTPException(status_code=503, detail="Service Unavailable")

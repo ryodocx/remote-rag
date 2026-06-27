@@ -44,3 +44,15 @@ spec:
               value: {{ .Values.authHelper.env.OAUTH_CLIENT_ID | quote }}
             - name: OAUTH_CLIENT_SECRET
               value: {{ .Values.authHelper.env.OAUTH_CLIENT_SECRET | quote }}
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 8000
+            initialDelaySeconds: 10
+            periodSeconds: 15
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: 8000
+            initialDelaySeconds: 10
+            periodSeconds: 15

@@ -519,6 +519,27 @@ func authHandler(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusUnauthorized)
 }
 
+func healthzHandler(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte("ok"))
+}
+
+func readyzHandler(w http.ResponseWriter, r *http.Request) {
+	// 簡易的なReadinessとしてキャッシュ（Redis等）へのPingをテスト
+	ctx, cancel := context.WithTimeout(r.Context(), 2*time.Second)
+	defer cancel()
+	
+	// キャッシュの正常性確認として、存在しないキーを取得してみてエラーにならないか確認
+	_, err := cacheInstance.Get(ctx, "health_check_ping")
+	if err != nil && err.Error() != "redis: nil" && err.Error() != "not found" {
+		http.Error(w, "Cache unavailable", http.StatusServiceUnavailable)
+		return
+	}
+	
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte("ready"))
+}
+
 func main() {
 	tp, mp := initTelemetry()
 	if tp != nil {
@@ -539,6 +560,8 @@ func main() {
 
 	http.Handle("/auth", wrappedHandler)
 	http.Handle("/metrics", promhttp.Handler())
+	http.HandleFunc("/healthz", healthzHandler)
+	http.HandleFunc("/readyz", readyzHandler)
 	
 	port := "8000"
 	log.Printf("Auth Helper starting on port %s", port)
