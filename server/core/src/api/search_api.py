@@ -12,10 +12,9 @@ import sys
 import logging
 from typing import Optional
 
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
-from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
 
 # srcモジュールへのパスを追加
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
@@ -33,23 +32,7 @@ setup_telemetry(service_name="rrag-rest-api")
 # FastAPI アプリ定義
 # ---------------------------------------------------------------------------
 
-app = FastAPI(
-    title="RRAG Search REST API",
-    description=(
-        "社内ナレッジベース（RAGエンジン）への REST API インターフェース。\n\n"
-        "Custom GPTs Actions からのアクセスを想定し、OAuth 2.0 Bearer トークン認証は "
-        "上位の Caddy リバースプロキシ + Auth Helper が処理します。\n\n"
-        "**Remote knowledge base search API** powered by hybrid RAG "
-        "(Vector + FTS + CrossEncoder reranker)."
-    ),
-    version="1.0.0",
-    # Caddy の strip_prefix に対応し、OpenAPI スキーマで正しいフルパスを表示する
-    root_path="/api",
-    # Custom GPTs の Actions 画面で表示される連絡先
-    contact={"name": "RRAG Administrator"},
-    license_info={"name": "MIT"},
-)
-FastAPIInstrumentor.instrument_app(app)
+router = APIRouter()
 
 tracer = get_tracer(__name__)
 meter = get_meter(__name__)
@@ -127,7 +110,7 @@ class PageContentResponse(BaseModel):
 # エンドポイント
 # ---------------------------------------------------------------------------
 
-@app.get(
+@router.get(
     "/search",
     response_model=SearchResponse,
     summary="ナレッジベース検索 / Search knowledge base",
@@ -184,7 +167,7 @@ async def search(
         return SearchResponse(results=results, total=len(results), query=query)
 
 
-@app.get(
+@router.get(
     "/search/metadata",
     response_model=SearchResponse,
     summary="メタデータ検索 / Search by metadata",
@@ -231,7 +214,7 @@ async def search_by_metadata(
         return SearchResponse(results=results, total=len(results), query=f"{key}:{value}")
 
 
-@app.get(
+@router.get(
     "/pages",
     response_model=PageListResponse,
     summary="ページ一覧取得 / List all pages",
@@ -264,7 +247,7 @@ async def list_pages(
         return PageListResponse(pages=pages, total=len(pages))
 
 
-@app.get(
+@router.get(
     "/pages/{page_id}",
     response_model=PageContentResponse,
     summary="ページ全文取得 / Read full page content",
@@ -298,24 +281,4 @@ async def read_page(
         return PageContentResponse(page_id=page_id, content=content)
 
 
-# ---------------------------------------------------------------------------
-# ヘルスチェック
-# ---------------------------------------------------------------------------
 
-@app.get("/healthz", tags=["Health"], summary="ヘルスチェック / Health check")
-async def healthz():
-    """サービスが起動しているか確認します。 / Check if the service is running."""
-    return {"status": "ok"}
-
-
-@app.get("/readyz", tags=["Health"], summary="レディネスチェック / Readiness check")
-async def readyz():
-    """DB への接続を含むレディネスチェック。 / Readiness check including DB connectivity."""
-    try:
-        searcher = _get_searcher()
-        # DB への疎通確認として list_pages を呼ぶ（limit=1 で最小負荷）
-        searcher.list_pages(limit=1)
-        return {"status": "ready"}
-    except Exception as e:
-        logger.error(f"Readiness check failed: {e}")
-        raise HTTPException(status_code=503, detail="Service Unavailable")

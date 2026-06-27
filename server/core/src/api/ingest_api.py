@@ -4,8 +4,7 @@ import uuid
 import logging
 from typing import List, Optional
 from pydantic import BaseModel, Field
-from fastapi import FastAPI, HTTPException, BackgroundTasks
-from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
+from fastapi import APIRouter, HTTPException, BackgroundTasks
 
 # srcモジュールへのパスを追加
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
@@ -21,8 +20,7 @@ logger = logging.getLogger(__name__)
 # Setup OpenTelemetry
 setup_telemetry(service_name="rrag-ingest-api")
 
-app = FastAPI(title="RRAG Ingestion Webhook API")
-FastAPIInstrumentor.instrument_app(app)
+router = APIRouter()
 
 TASK_STORE = {}
 MAX_TASKS = 1000
@@ -92,7 +90,7 @@ def background_ingest(task_id: str, documents: List[IngestDocument]):
         logger.error(f"Error during background ingestion setup: {e}")
         TASK_STORE[task_id] = {"status": "failed", "error": str(e)}
 
-@app.post("/ingest")
+@router.post("/ingest")
 async def ingest_webhook(request: IngestRequest, background_tasks: BackgroundTasks):
     """
     Webhook endpoint to receive documents from external systems (Airbyte, Dify, etc.)
@@ -119,7 +117,7 @@ def background_optimize(task_id: str):
         logger.error(f"Error during background optimization: {e}")
         TASK_STORE[task_id] = {"status": "failed", "error": str(e)}
 
-@app.post("/optimize")
+@router.post("/optimize")
 async def optimize_database(background_tasks: BackgroundTasks):
     """
     Endpoint to trigger database optimization and FTS index rebuild.
@@ -130,24 +128,10 @@ async def optimize_database(background_tasks: BackgroundTasks):
     background_tasks.add_task(background_optimize, task_id)
     return {"status": "accepted", "task_id": task_id, "message": "Database optimization started in background"}
 
-@app.get("/task/{task_id}")
+@router.get("/task/{task_id}")
 async def get_task_status(task_id: str):
     if task_id not in TASK_STORE:
         raise HTTPException(status_code=404, detail="Task not found")
     return {"task_id": task_id, **TASK_STORE[task_id]}
 
-@app.get("/healthz")
-async def healthz():
-    return {"status": "ok"}
 
-@app.get("/readyz")
-async def readyz():
-    try:
-        # DBへの疎通確認
-        client = DatabaseClient()
-        # 簡易的なテーブルリスト取得等でエラーが出ないかチェック
-        client.get_table()
-        return {"status": "ready"}
-    except Exception as e:
-        logger.error(f"Readiness check failed: {e}")
-        raise HTTPException(status_code=503, detail="Service Unavailable")
