@@ -14,3 +14,9 @@
 - [x] **Homebrew (Custom Tap) の詳細化**: 組織内配布用の具体的な Formula の定義例を `docs/DEVELOPMENT.md` に、詳細なインストール手順の案内を `README.md` にそれぞれ追記する。
   - GitHub Actionsで自動生成されるように対応済み
 - [ ] **リポジトリURLの変更**: 公開/移行に向けてリポジトリのURL（およびドキュメント内の関連リンク）を変更・整理する。
+
+
+## その他
+- 実装見直し
+- [ ] RABサーバの認証について、 https://github.com/ory/oathkeeper での置き換え、あるいは柔軟なフィルタ処理のためのOPAの導入を検討する。
+- [ ] localでのトークン管理について、https://github.com/int128/oauth2cli などの導入を検討
