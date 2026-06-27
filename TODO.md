@@ -18,7 +18,9 @@
 
 ## その他
 - 実装見直し
-- [ ] RABサーバの認証について、 https://github.com/ory/oathkeeper での置き換え、あるいは柔軟なフィルタ処理のためのOPAの導入を検討する。
-- [ ] localでのトークン管理について、https://github.com/int128/oauth2cli など既存実装の導入に価値があるかを検討
+- [ ] RAGサーバの認証について、 https://github.com/ory/oathkeeper での置き換え、あるいは柔軟なフィルタ処理のためのOPAの導入を検討する。
+- [x] localでのトークン管理について、https://github.com/int128/oauth2cli など既存実装の導入に価値があるかを検討
+  - 検討完了。機能的な不足がないため現状の自前実装を維持し、将来的にUX向上やポート競合対策が必要になった際に導入を検討する。
 - [ ] セッション中にトークン期限が切れた場合、能動的に切断する検討
-- [ ] EXACT_MATCH_RELEVANCE_THRESHOLD DEFAULT_RELEVANCE_THRESHOLD をカスタム可能にする
+- [x] EXACT_MATCH_RELEVANCE_THRESHOLD DEFAULT_RELEVANCE_THRESHOLD をカスタム可能にする
+  - 環境変数から読み込めるよう対応済み。
