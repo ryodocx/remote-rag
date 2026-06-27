@@ -108,8 +108,12 @@ func Authenticate() (string, error) {
 		return "", fmt.Errorf("failed to generate PKCE: %v", err)
 	}
 
-	// 空いているランダムなポートでローカルサーバーを起動します
-	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	// 固定ポート (デフォルト 18080) または環境変数で指定されたポートでローカルサーバーを起動します
+	portStr := os.Getenv("OAUTH_REDIRECT_PORT")
+	if portStr == "" {
+		portStr = "18080"
+	}
+	listener, err := net.Listen("tcp", "127.0.0.1:"+portStr)
 	if err != nil {
 		return "", fmt.Errorf("failed to bind local port: %v", err)
 	}
