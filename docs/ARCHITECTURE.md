@@ -24,7 +24,8 @@ graph TD
     Bridge -- "2. HTTPS / SSE (Token Header)" --> Caddy
     
     Caddy -- "3. Forward Auth Request" --> AuthHelper
-    AuthHelper -- "4. Introspection" --> IdentityProvider[Identity Provider<br>Okta / Auth0]
+    AuthHelper -- "4a. Introspection" --> IdentityProvider[Identity Provider<br>Okta / Auth0]
+    AuthHelper -. "4b. JWKS Local Verify" .-> IdentityProvider
     
     Caddy -- "5. Proxy if Valid" --> MCPServer
     MCPServer -- "6. Hybrid Search" --> LanceDB
@@ -62,14 +63,20 @@ sequenceDiagram
     Bridge->>Caddy: POST /messages<br/>Authorization: Bearer <token>
     
     Caddy->>Auth: 認証委譲 (forward_auth)
-    Auth->>Auth: トークンのハッシュ値(SHA-256)算出
-    Auth->>Redis: GET <hash>
     
-    alt キャッシュミス
-        Auth->>IdP: POST /introspect (Basic Auth)
-        IdP-->>Auth: active: true
-        Auth->>Redis: SETEX <hash> 60 "valid"
+    alt JWKSモード (推奨)
+        Auth->>Auth: ローカルで署名・exp検証
+    else Introspectionモード
+        Auth->>Auth: トークンのハッシュ値(SHA-256)算出
+        Auth->>Redis: GET <hash>
+        alt キャッシュミス
+            Auth->>IdP: POST /introspect (Basic Auth)
+            IdP-->>Auth: active: true
+            Auth->>Redis: SETEX <hash> 60 "valid"
+        end
     end
+    
+    Auth->>Auth: 属性ベースのアクセス制御 (ABAC / AND条件)
     
     Auth-->>Caddy: 200 OK
     Caddy->>MCP: プロキシリクエスト
@@ -91,12 +98,16 @@ sequenceDiagram
 *   **ストリーミング最適化**: MCPのSSE通信が途切れないよう、バッファリングを完全に無効化（`flush_interval -1`）しています。
 
 ### 3.3 Auth Helper (認証サイドカー)
-*   **役割**: 渡された Bearer トークンが有効かどうかを検証します。
-*   **オンライン検証**: RFC 7662 の Introspection エンドポイントを利用し、トークンが実際に有効（`active: true`）かを認可サーバーに直接問い合わせます。これにより Opaque Token でも安全に検証可能です。
+*   **役割**: 渡された Bearer トークンが有効かどうかを検証し、細やかなアクセス制御を行います。
+*   **検証モード**:
+    *   **JWKS モード (推奨)**: 起動時にIdPからJWKS（公開鍵）を取得し、リクエストごとにJWTの署名と有効期限（`exp`）をローカルで高速に検証します。トークンの失効を即時に検知できるため、最もセキュアで高速なアプローチです。
+    *   **Introspection モード**: Opaque Tokenを扱う場合などに、RFC 7662を利用してIdPへトークンの有効性（`active: true`）を直接問い合わせます。
+*   **属性ベースのアクセス制御 (ABAC)**: トークンのペイロードに含まれるクレーム（`iss`, `aud`, `client_id`, `scope` など）を厳格に検証するフェーズ1と、ユーザー固有の属性（`email` や `groups`, `sub` など）に基づいてフィルタリングするフェーズ2を備えています。複数の条件を設定した場合、それらはすべて **AND条件** として評価され、条件を一つでも満たさないリクエストは拒否されます。
 
-### 3.4 Redis (キャッシュストア)
-*   **役割**: 認可サーバーへの問い合わせによる API レートリミット枯渇や通信遅延を防ぐため、検証結果を一定時間（TTL: 1〜3分）保持します。
-*   **セキュリティ**: トークン自体を保存すると漏洩時にリスクとなるため、トークンの **SHA-256ハッシュ値** をキーとして `"valid"` という状態のみを保存します。
+### 3.4 Redis / Valkey (キャッシュストア)
+*   **役割**: Introspection モードを使用する際に、認可サーバーへの問い合わせによる API レートリミット枯渇や通信遅延を防ぐため、検証結果を一定時間保持します。
+*   **セキュリティ**: トークンの **SHA-256ハッシュ値** をキーとして `"valid"` という状態のみを保存します。
+*   **TTL**: キャッシュの有効期間は環境変数 `AUTH_INTROSPECT_CACHE_TTL_SECONDS` によって制御可能（デフォルト60秒）です。JWKSモードではローカル検証が高速なため、キャッシュは使用されません。
 
 ### 3.5 MCP Server (アプリケーション)
 *   **役割**: 実際のRAG検索やデータ処理を行うコアロジックです。

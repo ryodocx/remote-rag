@@ -2,33 +2,42 @@
 
 本ドキュメントでは、`RRAG (Remote RAG)` の認証基盤として **GitLab** (gitlab.com または セルフホスト版GitLab) を利用するための詳細な設定手順を解説します。
 
-GitLabを利用する場合、**2つのOAuthアプリケーション**を作成する必要があります。
-1. **サーバー側（Auth Proxy）用**: Confidential アプリケーション (APIでのIntrospection検証に使用)
-2. **クライアント側（Bridge CLI）用**: Public アプリケーション (AIエージェントからのPKCEフローによるログインに使用)
+GitLabを利用する場合、OAuthアプリケーションを作成する必要があります。
+基本的には**クライアント側（Bridge CLI）用のアプリケーションを1つ作成するだけ**で稼働しますが、Introspectionモードを利用する場合のみサーバー側用にもう1つアプリケーションが必要です。
 
 ---
 
 ## 1. サーバー側（Auth Proxy）の設定
 
-サーバーの `auth-helper` コンテナが、GitLab に対してトークンの有効性を検証（Introspection）するための設定です。
+サーバーの `auth-helper` コンテナが、GitLab が発行したトークンの有効性を検証するための設定です。
+RRAGはローカルでの **JWKSモード (推奨)** と、GitLabへ直接問い合わせる **Introspectionモード** の2つをサポートしています。
 
-### GitLab管理画面での操作
-1. GitLabの左サイドバーから **Edit Profile > Applications** (または グループ/Adminエリアの Applications) に移動し、「**Add new application**」をクリックします。
-2. Name に任意の名前を入力します（例: `RRAG Auth Proxy`）。
-3. Redirect URI は使用しないため、ダミーのURL（例: `https://localhost/`）を入力します。
-4. **Confidential** のチェックを **入れたまま** にします。
-5. Scopes は何も選択しなくて構いません（トークン検証自体には特定のスコープは不要です）。
-6. 「Save application」をクリックし、生成された **Application ID** と **Secret** を控えます。
-
-### サーバー環境変数 (`deploy/.env`) の設定
-控えた情報を `deploy/.env` に以下のように設定します。
+### パターンA: JWKS モード (推奨・設定が簡単)
+JWKSモードを利用する場合、GitLab側での追加のアプリケーション作成は**不要**です。
+`deploy/.env` に GitLab の JWKS URL を設定するだけで完了します。
 
 ```env
-# GitLabの Token Introspection エンドポイント
-# セルフホスト版の場合はドメイン部分をご自身の環境に合わせて変更してください
-OAUTH_INTROSPECT_URL=https://gitlab.com/oauth/introspect
+# 検証モードを JWKS に設定
+OAUTH_VALIDATION_MODE=jwks
 
-# 先ほど控えたConfidentialアプリケーションの Application ID と Secret
+# GitLabの JWKS エンドポイント
+# セルフホスト版の場合はドメイン部分をご自身の環境に合わせて変更してください
+OAUTH_JWKS_URL=https://gitlab.com/oauth/discovery/keys
+```
+
+### パターンB: Introspection モード (オプション)
+Opaqueトークンを利用したい場合や、キャッシュベースの検証を行いたい場合はこちらのモードを利用します。この場合、GitLab上で「Confidential アプリケーション」を作成し、Secretを発行する必要があります。
+
+1. GitLabの左サイドバーから **Edit Profile > Applications** に移動し、「**Add new application**」をクリックします。
+2. Name に任意の名前を入力し、Redirect URI にダミーのURL（例: `https://localhost/`）を入力します。
+3. **Confidential** のチェックを **入れたまま** にし、Scopes は未選択のまま保存します。
+4. 生成された **Application ID** と **Secret** を控えます。
+
+`deploy/.env` に以下のように設定します。
+
+```env
+OAUTH_VALIDATION_MODE=introspect
+OAUTH_INTROSPECT_URL=https://gitlab.com/oauth/introspect
 OAUTH_CLIENT_ID={Auth Proxy Application ID}
 OAUTH_CLIENT_SECRET={Auth Proxy Secret}
 ```
@@ -74,6 +83,9 @@ export MCP_REMOTE_URL=https://your-caddy-server-domain
 ## 3. (オプション) ユーザー属性に基づくフィルタリング設定
 
 サーバー側(`auth-helper`)で、特定の「ユーザーID(`sub`)」や「メールドメイン」に基づいたアクセス制御を行うことができます。
+
+> [!NOTE]
+> 複数の環境変数（例: `AUTH_FILTER_EMAIL_DOMAINS` と `AUTH_FILTER_SUBJECTS`）を同時に設定した場合、それらは **AND条件** として評価されます。つまり、ユーザーは指定された条件をすべて満たしている必要があります。
 
 ### GitLabにおけるクレームの制約について
 GitLabの Token Introspection API は仕様上、デフォルトでは `client_id`、`username`、`sub` などの情報を返却します。

@@ -2,36 +2,42 @@
 
 本ドキュメントでは、`RRAG (Remote RAG)` の認証基盤として **Okta** (OAuth 2.0 / OIDC) を利用するための詳細な設定手順を解説します。
 
-Oktaを利用する場合、**2つのアプリケーション（App Integration）**を作成する必要があります。
-1. **サーバー側（Auth Proxy）用**: Webアプリケーション (APIでのIntrospection検証に使用)
-2. **クライアント側（Bridge CLI）用**: Nativeアプリケーション (AIエージェントからのPKCEフローによるログインに使用)
+Oktaを利用する場合、アプリケーション（App Integration）を作成する必要があります。
+基本的には**クライアント側（Bridge CLI）用のアプリケーションを1つ作成するだけ**で稼働しますが、Introspectionモードを利用する場合のみサーバー側用にもう1つアプリケーションが必要です。
 
 ---
 
 ## 1. サーバー側（Auth Proxy）の設定
 
-サーバーの `auth-helper` コンテナが、Okta に対してトークンの有効性を検証（Introspection）するための設定です。
+サーバーの `auth-helper` コンテナが、Okta が発行したトークンの有効性を検証するための設定です。
+RRAGはローカルでの **JWKSモード (推奨)** と、Oktaへ直接問い合わせる **Introspectionモード** の2つをサポートしています。
 
-### Okta管理画面での操作
-1. **Applications > Applications** に移動し、「**Create App Integration**」をクリックします。
-2. Sign-in method で **OIDC - OpenID Connect** を選択します。
-3. Application type で **Web Application** を選択し、「Next」をクリックします。
-4. App integration name に任意の名前を入力します（例: `RRAG Auth Proxy`）。
-5. Grant type で **Client Credentials** をチェックします。
-   *(※その他不要なGrant typeのチェックは外して構いません)*
-6. Sign-in redirect URIs はデフォルトのままで問題ありません。
-7. Assignments で、利用を許可するユーザーやグループをアサインし、「Save」をクリックします。
-8. 作成されたアプリの **General** タブから **Client ID** と **Client secret** を控えます。
-
-### サーバー環境変数 (`deploy/.env`) の設定
-控えた情報を `deploy/.env` に以下のように設定します。
+### パターンA: JWKS モード (推奨・設定が簡単)
+JWKSモードを利用する場合、Okta側での追加のアプリケーション作成は**不要**です。
+`deploy/.env` に Okta の JWKS URL を設定するだけで完了します。
 
 ```env
-# OktaのカスタムAuthorization ServerのIntrospectionエンドポイント
-# (デフォルトのAuthorization Serverを使用する場合の例)
-OAUTH_INTROSPECT_URL=https://{your-okta-domain}/oauth2/default/v1/introspect
+# 検証モードを JWKS に設定
+OAUTH_VALIDATION_MODE=jwks
 
-# 先ほど控えたWeb ApplicationのClient IDとSecret
+# OktaのカスタムAuthorization ServerのJWKSエンドポイント
+# (デフォルトのAuthorization Serverを使用する場合の例)
+OAUTH_JWKS_URL=https://{your-okta-domain}/oauth2/default/v1/keys
+```
+
+### パターンB: Introspection モード (オプション)
+Opaqueトークンを利用したい場合や、キャッシュベースの検証を行いたい場合はこちらのモードを利用します。この場合、Okta管理画面で「Web Application」を作成し、Client Secretを発行する必要があります。
+
+1. **Applications > Applications** に移動し、「**Create App Integration**」をクリック。
+2. **OIDC - OpenID Connect** > **Web Application** を選択。
+3. Grant type で **Client Credentials** をチェック。
+4. アプリ作成後、**Client ID** と **Client Secret** を控えます。
+
+`deploy/.env` に以下のように設定します。
+
+```env
+OAUTH_VALIDATION_MODE=introspect
+OAUTH_INTROSPECT_URL=https://{your-okta-domain}/oauth2/default/v1/introspect
 OAUTH_CLIENT_ID={Web App Client ID}
 OAUTH_CLIENT_SECRET={Web App Client Secret}
 ```
@@ -79,7 +85,10 @@ export MCP_REMOTE_URL=https://your-caddy-server-domain
 
 ## 3. (オプション) ユーザー属性に基づくフィルタリング設定
 
-サーバー側(`auth-helper`)で、特定の「メールドメイン」や「グループ」に所属するユーザーのみアクセスを許可するフィルタリングを行いたい場合、Oktaの Introspection レスポンスに `email` や `groups` を含める必要があります。
+サーバー側(`auth-helper`)で、特定の「メールドメイン」や「グループ」に所属するユーザーのみアクセスを許可するフィルタリングを行いたい場合、Oktaのトークン（または Introspection レスポンス）に `email` や `groups` を含める必要があります。
+
+> [!NOTE]
+> 複数の環境変数（例: `AUTH_FILTER_EMAIL_DOMAINS` と `AUTH_FILTER_GROUPS`）を同時に設定した場合、それらは **AND条件** として評価されます。つまり、ユーザーは指定されたメールドメインを持ち、かつ指定されたグループのいずれかに所属している必要があります。
 
 ### Authorization Server の設定 (カスタムクレームの追加)
 1. **Security > API > Authorization Servers** に移動し、使用しているサーバー（例: `default`）をクリックします。
