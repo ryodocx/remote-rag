@@ -1,4 +1,4 @@
-module bridge
+module github.com/ryodocx/remote-rag/client/bridge
 
 go 1.26.4
 

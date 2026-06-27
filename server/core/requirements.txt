@@ -16,3 +16,5 @@ opentelemetry-exporter-prometheus>=0.40b0,<1.0
 prometheus-client>=0.17.0,<1.0
 opentelemetry-instrumentation-fastapi>=0.40b0,<1.0
 opentelemetry-instrumentation-requests>=0.40b0,<1.0
+tiktoken>=0.8.0,<1.0
+langchain-text-splitters>=0.3.0,<1.0
