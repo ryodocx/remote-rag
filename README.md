@@ -1,11 +1,11 @@
 <div align="center">
   <h1>🚀 RRAG (Remote RAG) MCP Server & Auth Proxy</h1>
-  <p><strong>A secure bridge connecting enterprise internal knowledge to AI agents</strong></p>
+  <p><strong>A remote MCP server with an integrated OAuth 2.0 authentication proxy and hybrid RAG backend.</strong></p>
 
   <p>
-    <b>🛡️ Robust Security (OAuth 2.0 & JWKS)</b> &nbsp;•&nbsp; 
-    <b>🎯 Incredible Search Accuracy (Hybrid RAG)</b> &nbsp;•&nbsp; 
-    <b>🔌 Seamless AI Integration (MCP)</b>
+    <b>🛡️ OAuth 2.0 & JWKS Auth</b> &nbsp;•&nbsp; 
+    <b>🎯 Hybrid RAG Search</b> &nbsp;•&nbsp; 
+    <b>🔌 MCP Protocol Support</b>
   </p>
 
   [![Docker](https://img.shields.io/badge/docker-%230db7ed.svg?style=flat&logo=docker&logoColor=white)](#)
@@ -25,10 +25,10 @@ An enterprise-ready platform providing a highly accurate **RAG (Retrieval-Augmen
 
 More than just a search server, RRAG natively integrates a **generic OAuth 2.0 / OIDC authentication and proxy mechanism**, enabling secure remote access over the network.
 
-### 🌟 Three Key Values of this Project
-1. **Goodbye Static Credentials**: Escape the high-risk management of API keys. RRAG relies on company-standard IdPs (e.g., Okta, Auth0, GitLab) for secure access management.
-2. **Elevating AI Context Understanding**: Combining Vector and Full-Text Search (FTS) with Cross-Encoder (Reranker) re-evaluation completely resolves the problem of AI referencing irrelevant internal info.
-3. **Infrastructure-agnostic Connectivity**: A transparent bridge client that hides the boundaries between the local PC and the remote server, providing a secure AI environment anywhere.
+### 🌟 Key Architecture Concepts
+1. **Standardized Identity Management**: Replaces static API keys with standard OAuth 2.0 / OIDC integrations (e.g., Okta, Auth0, GitLab) for dynamic and secure access control.
+2. **Hybrid Search Pipeline**: Combines Vector search, Full-Text Search (FTS), and a Cross-Encoder (Reranker) to improve retrieval precision.
+3. **Transparent Client Bridge**: A local daemon that handles token management and proxies standard I/O (stdio) to Server-Sent Events (SSE).
 
 ---
 
@@ -45,30 +45,29 @@ More than just a search server, RRAG natively integrates a **generic OAuth 2.0 /
 
 ---
 
-## 🤔 Why is this project needed? (Why?)
+## 🤔 Motivation
 
-As the utilization of AI agents in business accelerates, the demand to "feed internal confidential data (wikis, specs, meeting notes) to AI" is surging. The **Model Context Protocol (MCP)** is one of the best answers for this, but introducing it to enterprise environments poses **two major hurdles**:
+Integrating the **Model Context Protocol (MCP)** into enterprise environments typically presents two main technical challenges:
 
-1. **The Wall of Authentication & Authorization**: To access an internal MCP server remotely, companies had to distribute fixed credentials like API keys to each PC. This created massive security risks (leaks) and high management costs (rotation).
-2. **The Wall of Search Accuracy**: To understand complex business context and pinpoint the "exact few lines needed" out of massive document stores, a highly sophisticated RAG architecture is required.
+1. **Secure Remote Access**: Connecting to remote MCP servers often relies on distributing static API keys to individual clients. This approach increases the risk of credential leakage and introduces significant management overhead (e.g., key rotation).
+2. **Retrieval Precision**: Standard vector searches may struggle to find exact matches or handle complex queries over large internal document bases without a well-tuned RAG pipeline.
 
-**RRAG MCP Server & Auth Proxy** solves both challenges simultaneously.
-Without embedding complex authentication logic into the AI agent, it achieves secure access using standard **OAuth 2.0 / OIDC** while providing a top-tier hybrid search backend.
+**RRAG MCP Server & Auth Proxy** addresses these issues by acting as an authentication proxy using standard **OAuth 2.0 / OIDC** and providing a pre-configured hybrid search backend, without requiring complex authentication logic inside the AI agent.
 
 ---
 
 ## ✨ Features
 
-*   **🛡️ Secure Auth Proxy (Zero Trust Ready)**
-    Caddy + a custom Auth Helper validate OAuth 2.0 tokens right before MCP communication. It supports both **Token Introspection (RFC 7662)** and **Local JWT Validation via JWKS** for lightning-fast verification without relying on specific vendors.
+*   **🛡️ OAuth 2.0 Auth Proxy**
+    Caddy + a custom Auth Helper validate OAuth 2.0 tokens right before MCP communication. It supports both **Token Introspection (RFC 7662)** and **Local JWT Validation via JWKS**.
 *   **👤 Attribute-based Access Control (ABAC)**
     Configure fine-grained filtering based on IdP claims. Validate `iss`, `aud`, `client_id`, and `scopes` (strict AND conditions), along with user attributes like `email` domains, exact emails, or `groups` (AND conditions).
-*   **💻 Transparent Client Bridge**
-    Automatically integrates with macOS Keychain or Windows Credential Manager. By acquiring/refreshing tokens via browser (PKCE flow), it seamlessly bridges the AI agent's standard I/O (`stdio`) to the server's `SSE`.
-*   **🔍 Advanced Hybrid Search (Vector + FTS)**
-    Leveraging [LanceDB](https://lancedb.github.io/lancedb/), it fuses vector search and keyword search. It then applies a CrossEncoder (Reranker) to extract only the most relevant chunks.
-*   **🧠 Pluggable AI Models**
-    Freely swap Embedding and Reranker models via environment variables. Defaults to the lightweight and highly accurate `intfloat/multilingual-e5-base`, running entirely locally with zero external data transmission.
+*   **💻 Client Bridge**
+    Automatically integrates with macOS Keychain or Windows Credential Manager. By acquiring/refreshing tokens via browser (PKCE flow), it bridges the AI agent's standard I/O (`stdio`) to the server's `SSE`.
+*   **🔍 Hybrid Search Backend (Vector + FTS)**
+    Leveraging [LanceDB](https://lancedb.github.io/lancedb/), it fuses vector search and keyword search. It then applies a CrossEncoder (Reranker) to extract relevant chunks.
+*   **🧩 Configurable Models**
+    Swap Embedding and Reranker models via environment variables. Defaults to `intfloat/multilingual-e5-base`.
 
 ---
 
@@ -87,7 +86,7 @@ Once configured, you can seamlessly reference internal data from Claude Desktop 
 
 ## 🧩 Architecture Overview
 
-The local Bridge CLI automates token acquisition, while the Caddy + Auth Helper on the server acts as the **"Authentication Gatekeeper"**. This allows the MCP server itself to remain completely free of authentication logic, focusing entirely on secure RAG searches.
+The local Bridge CLI automates token acquisition, while the Caddy + Auth Helper on the server acts as an **Authentication Proxy**. This allows the MCP server to remain free of authentication logic, focusing entirely on RAG searches.
 
 (For detailed sequence diagrams, see the **[Architecture Document](docs/ARCHITECTURE.md)**)
 
