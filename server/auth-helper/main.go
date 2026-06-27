@@ -46,6 +46,7 @@ var (
 	tracer              = otel.Tracer("auth-helper")
 	meter               = otel.Meter("auth-helper")
 	authCounter         metric.Int64Counter
+	httpClient          *http.Client
 )
 
 func init() {
@@ -102,6 +103,15 @@ func init() {
 			log.Println("WARNING: OAUTH_INTROSPECT_URL, OAUTH_CLIENT_ID, or OAUTH_CLIENT_SECRET is missing.")
 		}
 		log.Printf("Introspection mode enabled. Cache TTL: %v", introspectCacheTTL)
+	}
+
+	httpClient = &http.Client{
+		Timeout: 5 * time.Second,
+		Transport: otelhttp.NewTransport(&http.Transport{
+			MaxIdleConns:        100,
+			MaxIdleConnsPerHost: 100,
+			IdleConnTimeout:     90 * time.Second,
+		}),
 	}
 }
 
@@ -242,7 +252,8 @@ func validateUserConstraints(result *IntrospectionResponse, span trace.Span) boo
 		domains := strings.Split(domainsStr, ",")
 		domainMatched := false
 		for _, domain := range domains {
-			if strings.HasSuffix(result.Email, strings.TrimSpace(domain)) {
+			d := strings.TrimSpace(domain)
+			if strings.HasSuffix(result.Email, "@"+d) {
 				domainMatched = true
 				break
 			}
@@ -326,20 +337,15 @@ func introspectToken(ctx context.Context, token string) (*IntrospectionResponse,
 	if oauthIntrospectURL == "" {
 		if os.Getenv("MOCK_AUTH") == "true" {
 			log.Println("Mocking introspection: Returning true (MOCK_AUTH is true)")
-			return true, nil
+			return &IntrospectionResponse{Active: true}, nil
 		}
 		log.Println("OAUTH_INTROSPECT_URL is missing and MOCK_AUTH is not true. Rejecting token.")
-		return false, nil
+		return &IntrospectionResponse{Active: false}, nil
 	}
 
 	data := url.Values{}
 	data.Set("token", token)
 	data.Set("token_type_hint", "access_token")
-
-	client := &http.Client{
-		Timeout: 5 * time.Second,
-		Transport: otelhttp.NewTransport(http.DefaultTransport),
-	}
 
 	var resp *http.Response
 	var err error
@@ -353,7 +359,7 @@ func introspectToken(ctx context.Context, token string) (*IntrospectionResponse,
 		basicAuth := base64.StdEncoding.EncodeToString([]byte(auth))
 		req.Header.Set("Authorization", "Basic "+basicAuth)
 
-		resp, err = client.Do(req)
+		resp, err = httpClient.Do(req)
 		
 		if err == nil && resp.StatusCode < 500 {
 			break
@@ -464,6 +470,7 @@ func authHandler(w http.ResponseWriter, r *http.Request) {
 	tokenHash := hashToken(token)
 
 	var resp *IntrospectionResponse
+	var err error
 
 	if oauthValidationMode == "jwks" {
 		resp, err = verifyJWT(ctx, token)
