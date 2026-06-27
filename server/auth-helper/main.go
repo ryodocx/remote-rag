@@ -238,39 +238,47 @@ func validateClientConstraints(result *IntrospectionResponse, span trace.Span) b
 
 func validateUserConstraints(result *IntrospectionResponse, span trace.Span) bool {
 	domainsStr := os.Getenv("AUTH_FILTER_EMAIL_DOMAINS")
-	emailsStr := os.Getenv("AUTH_FILTER_EMAILS")
-	groupsStr := os.Getenv("AUTH_FILTER_GROUPS")
-	subsStr := os.Getenv("AUTH_FILTER_SUBJECTS")
-
-	if domainsStr == "" && emailsStr == "" && groupsStr == "" && subsStr == "" {
-		return true // No user constraints configured, allow by default
-	}
-
 	if domainsStr != "" {
 		domains := strings.Split(domainsStr, ",")
+		domainMatched := false
 		for _, domain := range domains {
 			if strings.HasSuffix(result.Email, strings.TrimSpace(domain)) {
-				return true
+				domainMatched = true
+				break
 			}
+		}
+		if !domainMatched {
+			span.SetAttributes(attribute.String("auth.reason", "filtered_by_email_domain"))
+			return false
 		}
 	}
 
+	emailsStr := os.Getenv("AUTH_FILTER_EMAILS")
 	if emailsStr != "" {
 		emails := strings.Split(emailsStr, ",")
+		emailMatched := false
 		for _, email := range emails {
 			if result.Email == strings.TrimSpace(email) {
-				return true
+				emailMatched = true
+				break
 			}
+		}
+		if !emailMatched {
+			span.SetAttributes(attribute.String("auth.reason", "filtered_by_email"))
+			return false
 		}
 	}
 
+	groupsStr := os.Getenv("AUTH_FILTER_GROUPS")
 	if groupsStr != "" {
 		allowedGroups := strings.Split(groupsStr, ",")
+		groupMatched := false
 		switch v := result.Groups.(type) {
 		case string:
 			for _, ag := range allowedGroups {
 				if v == strings.TrimSpace(ag) {
-					return true
+					groupMatched = true
+					break
 				}
 			}
 		case []interface{}:
@@ -278,25 +286,36 @@ func validateUserConstraints(result *IntrospectionResponse, span trace.Span) boo
 				if sg, ok := g.(string); ok {
 					for _, ag := range allowedGroups {
 						if sg == strings.TrimSpace(ag) {
-							return true
+							groupMatched = true
+							break
 						}
 					}
 				}
 			}
 		}
-	}
-
-	if subsStr != "" {
-		subs := strings.Split(subsStr, ",")
-		for _, sub := range subs {
-			if result.Sub == strings.TrimSpace(sub) {
-				return true
-			}
+		if !groupMatched {
+			span.SetAttributes(attribute.String("auth.reason", "filtered_by_groups"))
+			return false
 		}
 	}
 
-	span.SetAttributes(attribute.String("auth.reason", "filtered_by_user_constraints"))
-	return false
+	subsStr := os.Getenv("AUTH_FILTER_SUBJECTS")
+	if subsStr != "" {
+		subs := strings.Split(subsStr, ",")
+		subMatched := false
+		for _, sub := range subs {
+			if result.Sub == strings.TrimSpace(sub) {
+				subMatched = true
+				break
+			}
+		}
+		if !subMatched {
+			span.SetAttributes(attribute.String("auth.reason", "filtered_by_subject"))
+			return false
+		}
+	}
+
+	return true
 }
 
 // introspectToken はRFC7662に基づいてトークンの有効性を確認します。
