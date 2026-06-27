@@ -34,14 +34,16 @@ More than just a search server, RRAG natively integrates a **generic OAuth 2.0 /
 
 ## 📖 Table of Contents
 
-- [Why is this project needed? (Why?)](#-why-is-this-project-needed-why)
-- [Features](#-features)
-- [Use Case & Demo](#-use-case--demo)
-- [Architecture Overview](#-architecture-overview)
-- [Quick Start](#-quick-start-deployment-to-integration)
-- [Directory Structure](#-directory-structure)
-- [Documentation](#-documentation)
-- [FAQ](#-faq)
+- [Motivation](#motivation)
+- [Features](#features)
+- [Use Case & Demo](#use-case--demo)
+- [Architecture Overview](#architecture-overview)
+- [Quick Start: Deployment to Integration](#quick-start-deployment-to-integration)
+- [No-Auth Mode (Local Testing)](#no-auth-mode-local-testing)
+- [Directory Structure](#directory-structure)
+- [Documentation](#documentation)
+- [FAQ](#faq)
+- [Contributing](#contributing)
 
 ---
 
