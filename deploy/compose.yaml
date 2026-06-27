@@ -9,7 +9,7 @@ services:
       - huggingface_cache:/home/appuser/.cache/huggingface
     command: python -m src.entrypoint
     ports:
-      - "127.0.0.1:8001:8001" # Ingest API (localhost only)
+      - "127.0.0.1:8000:8000"  # 統合サーバー (REST API, Ingest API, MCP)
       - "8002:8002"            # Metrics
     environment:
       - PYTHONUNBUFFERED=1
