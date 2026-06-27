@@ -245,7 +245,6 @@ If you don't need network access and just want to search local data, run the Pyt
 | **[Operations Manual](docs/OPERATIONS.md)** | Server environment variables, deployment steps, and troubleshooting. |
 | **[Okta Setup Guide](docs/OKTA_SETUP.md)** | App registration and custom claims config for Okta (OAuth 2.0 / OIDC). |
 | **[GitLab Setup Guide](docs/GITLAB_SETUP.md)** | App registration and claim details for GitLab (gitlab.com / Self-hosted). |
-| **[GitHub Setup Guide](docs/GITHUB_SETUP.md)** | Architectural limitations of GitHub OAuth and how to set it up using an IdP broker like Auth0. |
 | **[AI Models Guide](docs/MODELS.md)** | How to swap Embedding/Reranker models, with comparisons for quality, speed, and memory usage. |
 | **[Development Guide](docs/DEVELOPMENT.md)** | Build instructions, local environments, and testing AI models. |
 
