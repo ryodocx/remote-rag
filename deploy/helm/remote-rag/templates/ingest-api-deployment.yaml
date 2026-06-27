@@ -36,23 +36,4 @@ spec:
             - name: http
               containerPort: 8001
               protocol: TCP
-          volumeMounts:
-            {{- if .Values.persistence.data.enabled }}
-            - name: data
-              mountPath: /app/data
-            {{- end }}
-            {{- if .Values.persistence.huggingface.enabled }}
-            - name: huggingface-cache
-              mountPath: /home/appuser/.cache/huggingface
-            {{- end }}
-      volumes:
-        {{- if .Values.persistence.data.enabled }}
-        - name: data
-          persistentVolumeClaim:
-            claimName: {{ include "remote-rag.fullname" . }}-data
-        {{- end }}
-        {{- if .Values.persistence.huggingface.enabled }}
-        - name: huggingface-cache
-          persistentVolumeClaim:
-            claimName: {{ include "remote-rag.fullname" . }}-huggingface
-        {{- end }}
+

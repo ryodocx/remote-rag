@@ -74,14 +74,4 @@ valkey:
     type: ClusterIP
     port: 6379
 
-persistence:
-  data:
-    enabled: false
-    storageClass: ""
-    accessMode: ReadWriteMany
-    size: 10Gi
-  huggingface:
-    enabled: false
-    storageClass: ""
-    accessMode: ReadWriteMany
-    size: 10Gi
+
