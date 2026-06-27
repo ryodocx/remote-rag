@@ -62,7 +62,7 @@ func init() {
 	// 動作モードと共通設定
 	oauthValidationMode = os.Getenv("OAUTH_VALIDATION_MODE")
 	if oauthValidationMode == "" {
-		oauthValidationMode = "introspect"
+		oauthValidationMode = "jwks"
 	}
 
 	ttlStr := os.Getenv("AUTH_INTROSPECT_CACHE_TTL_SECONDS")

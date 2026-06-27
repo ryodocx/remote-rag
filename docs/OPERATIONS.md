@@ -8,9 +8,9 @@
 
 ### サーバー側の環境変数 (`.env`)
 ```env
-# 検証モードの選択 (introspect または jwks)
-# デフォルトは introspect です
-OAUTH_VALIDATION_MODE=introspect
+# 検証モードの選択 (jwks または introspect)
+# デフォルトは jwks です (推奨)
+OAUTH_VALIDATION_MODE=jwks
 
 # [Introspectionモードの場合] 認可サーバーの Introspection API エンドポイント
 OAUTH_INTROSPECT_URL=https://{your-idp-domain}/oauth2/v1/introspect
