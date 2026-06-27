@@ -40,7 +40,6 @@ var (
 	oauthIntrospectURL  string // OAuth2.0 Token Introspection エンドポイントのURL
 	oauthClientID       string // Introspection用のクライアントID (Basic認証用)
 	oauthClientSecret   string // Introspection用のクライアントシークレット (Basic認証用)
-	oauthValidationMode string // 検証モード ("introspect" or "jwks")
 	jwksInstance        keyfunc.Keyfunc // JWKSインスタンス
 	introspectCacheTTL  time.Duration   // Introspectionモード時のキャッシュTTL
 	tracer              = otel.Tracer("auth-helper")
@@ -60,29 +59,20 @@ func init() {
 		cacheInstance = NewRedisCache(os.Getenv("REDIS_HOST"), os.Getenv("REDIS_PORT"))
 	}
 
-	// 動作モードと共通設定
-	oauthValidationMode = os.Getenv("OAUTH_VALIDATION_MODE")
-	if oauthValidationMode == "" {
-		oauthValidationMode = "jwks"
-	}
-
 	ttlStr := os.Getenv("AUTH_INTROSPECT_CACHE_TTL_SECONDS")
 	if ttlStr != "" {
 		if ttl, err := strconv.Atoi(ttlStr); err == nil {
 			introspectCacheTTL = time.Duration(ttl) * time.Second
 		} else {
-			introspectCacheTTL = 60 * time.Second
+			introspectCacheTTL = 600 * time.Second // default max 10 mins
 		}
 	} else {
-		introspectCacheTTL = 60 * time.Second
+		introspectCacheTTL = 600 * time.Second
 	}
 
-	if oauthValidationMode == "jwks" {
-		jwksURL := os.Getenv("OAUTH_JWKS_URL")
-		if jwksURL == "" {
-			log.Fatal("OAUTH_JWKS_URL is required when OAUTH_VALIDATION_MODE is jwks")
-		}
-		
+	// JWKS用の設定
+	jwksURL := os.Getenv("OAUTH_JWKS_URL")
+	if jwksURL != "" {
 		options := keyfunc.Options{
 			RefreshInterval: time.Hour,
 			RefreshRateLimit: 5 * time.Minute,
@@ -92,17 +82,15 @@ func init() {
 		if err != nil {
 			log.Fatalf("Failed to create JWKS from URL: %v", err)
 		}
-		log.Printf("JWKS mode enabled. JWKS URL: %s", jwksURL)
-	} else {
-		// Introspection用の設定を環境変数から取得します
-		oauthIntrospectURL = os.Getenv("OAUTH_INTROSPECT_URL")
-		oauthClientID = os.Getenv("OAUTH_CLIENT_ID")
-		oauthClientSecret = os.Getenv("OAUTH_CLIENT_SECRET")
+		log.Printf("JWKS route enabled. JWKS URL: %s", jwksURL)
+	}
 
-		if oauthIntrospectURL == "" || oauthClientID == "" || oauthClientSecret == "" {
-			log.Println("WARNING: OAUTH_INTROSPECT_URL, OAUTH_CLIENT_ID, or OAUTH_CLIENT_SECRET is missing.")
-		}
-		log.Printf("Introspection mode enabled. Cache TTL: %v", introspectCacheTTL)
+	// Introspection用の設定
+	oauthIntrospectURL = os.Getenv("OAUTH_INTROSPECT_URL")
+	oauthClientID = os.Getenv("OAUTH_CLIENT_ID")
+	oauthClientSecret = os.Getenv("OAUTH_CLIENT_SECRET")
+	if oauthIntrospectURL != "" {
+		log.Printf("Introspection route enabled. Cache TTL MAX: %v", introspectCacheTTL)
 	}
 
 	httpClient = &http.Client{
@@ -190,6 +178,7 @@ type IntrospectionResponse struct {
 	Sub      string      `json:"sub"`
 	Email    string      `json:"email"`
 	Groups   interface{} `json:"groups"`
+	Exp      int64       `json:"exp"`
 }
 
 func validateClientConstraints(result *IntrospectionResponse, span trace.Span) bool {
@@ -448,9 +437,9 @@ func verifyJWT(ctx context.Context, tokenString string) (*IntrospectionResponse,
 	return resp, nil
 }
 
-func authHandler(w http.ResponseWriter, r *http.Request) {
+func introspectHandler(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	ctx, span := tracer.Start(ctx, "authHandler_logic")
+	ctx, span := tracer.Start(ctx, "introspectHandler_logic")
 	defer span.End()
 
 	authHeader := r.Header.Get("Authorization")
@@ -469,40 +458,116 @@ func authHandler(w http.ResponseWriter, r *http.Request) {
 
 	tokenHash := hashToken(token)
 
-	var resp *IntrospectionResponse
-	var err error
+	val, err := cacheInstance.Get(ctx, tokenHash)
+	if err == nil && val == "valid" {
+		span.SetAttributes(attribute.Bool("cache.hit", true))
+		w.WriteHeader(http.StatusOK)
+		return
+	}
+	span.SetAttributes(attribute.Bool("cache.hit", false))
 
-	if oauthValidationMode == "jwks" {
-		resp, err = verifyJWT(ctx, token)
-		if err != nil {
-			log.Printf("Error verifying JWT: %v", err)
-			span.RecordError(err)
-			w.WriteHeader(http.StatusUnauthorized)
-			return
-		}
-	} else {
-		val, err := cacheInstance.Get(ctx, tokenHash)
-		if err == nil && val == "valid" {
-			span.SetAttributes(attribute.Bool("cache.hit", true))
-			w.WriteHeader(http.StatusOK)
-			return
-		}
-		span.SetAttributes(attribute.Bool("cache.hit", false))
-
-		resp, err = introspectToken(ctx, token)
-		if err != nil {
-			log.Printf("Error introspecting token: %v", err)
-			span.RecordError(err)
-			w.WriteHeader(http.StatusInternalServerError)
-			return
-		}
+	resp, err := introspectToken(ctx, token)
+	if err != nil {
+		log.Printf("Error introspecting token: %v", err)
+		span.RecordError(err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
 	}
 
 	if resp != nil && resp.Active {
 		if validateClientConstraints(resp, span) && validateUserConstraints(resp, span) {
-			if oauthValidationMode != "jwks" {
-				cacheInstance.Set(ctx, tokenHash, "valid", introspectCacheTTL)
+			ttl := introspectCacheTTL
+			if resp.Exp > 0 {
+				remain := time.Until(time.Unix(resp.Exp, 0))
+				if remain < ttl {
+					ttl = remain
+				}
 			}
+			if ttl > 0 {
+				cacheInstance.Set(ctx, tokenHash, "valid", ttl)
+			}
+
+			span.SetAttributes(attribute.String("auth.status", "authorized"))
+			if authCounter != nil {
+				authCounter.Add(ctx, 1, metric.WithAttributes(attribute.String("status", "authorized")))
+			}
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+	}
+
+	span.SetAttributes(attribute.String("auth.status", "unauthorized"))
+	if authCounter != nil {
+		authCounter.Add(ctx, 1, metric.WithAttributes(attribute.String("status", "unauthorized")))
+	}
+	w.WriteHeader(http.StatusUnauthorized)
+}
+
+func jwksHandler(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	ctx, span := tracer.Start(ctx, "jwksHandler_logic")
+	defer span.End()
+
+	authHeader := r.Header.Get("Authorization")
+	if !strings.HasPrefix(authHeader, "Bearer ") {
+		span.SetAttributes(attribute.String("auth.reason", "missing_bearer"))
+		w.WriteHeader(http.StatusUnauthorized)
+		return
+	}
+
+	token := strings.TrimPrefix(authHeader, "Bearer ")
+	if token == "" {
+		span.SetAttributes(attribute.String("auth.reason", "empty_token"))
+		w.WriteHeader(http.StatusUnauthorized)
+		return
+	}
+
+	if jwksInstance == nil {
+		log.Printf("JWKS route is not enabled but /auth/jwks was called")
+		span.RecordError(errors.New("jwks not configured"))
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	resp, err := verifyJWT(ctx, token)
+	if err != nil {
+		log.Printf("Error verifying JWT: %v", err)
+		span.RecordError(err)
+		w.WriteHeader(http.StatusUnauthorized)
+		return
+	}
+
+	// 厳格なaudチェック(Caddyから渡されるクエリパラメータを必須とする)
+	expectedAud := r.URL.Query().Get("expected_aud")
+	if expectedAud == "" {
+		log.Printf("JWKS route requires expected_aud query parameter")
+		span.SetAttributes(attribute.String("auth.reason", "missing_expected_aud"))
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+	
+	audMatched := false
+	switch v := resp.Aud.(type) {
+	case string:
+		if v == expectedAud {
+			audMatched = true
+		}
+	case []interface{}:
+		for _, a := range v {
+			if s, ok := a.(string); ok && s == expectedAud {
+				audMatched = true
+				break
+			}
+		}
+	}
+	if !audMatched {
+		span.SetAttributes(attribute.String("auth.reason", "filtered_by_aud_strict"))
+		w.WriteHeader(http.StatusUnauthorized)
+		return
+	}
+
+	if resp != nil && resp.Active {
+		if validateClientConstraints(resp, span) && validateUserConstraints(resp, span) {
 			span.SetAttributes(attribute.String("auth.status", "authorized"))
 			if authCounter != nil {
 				authCounter.Add(ctx, 1, metric.WithAttributes(attribute.String("status", "authorized")))
@@ -555,10 +620,11 @@ func main() {
 		}()
 	}
 
-	handler := http.HandlerFunc(authHandler)
-	wrappedHandler := otelhttp.NewHandler(handler, "auth_endpoint")
+	introspectWrapped := otelhttp.NewHandler(http.HandlerFunc(introspectHandler), "auth_introspect")
+	jwksWrapped := otelhttp.NewHandler(http.HandlerFunc(jwksHandler), "auth_jwks")
 
-	http.Handle("/auth", wrappedHandler)
+	http.Handle("/auth/introspect", introspectWrapped)
+	http.Handle("/auth/jwks", jwksWrapped)
 	http.Handle("/metrics", promhttp.Handler())
 	http.HandleFunc("/healthz", healthzHandler)
 	http.HandleFunc("/readyz", readyzHandler)
