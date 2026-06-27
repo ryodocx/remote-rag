@@ -8,12 +8,21 @@
 
 ### サーバー側の環境変数 (`.env`)
 ```env
-# 認可サーバーの Introspection API エンドポイント (※認証なしでテストする場合は空に設定)
-OAUTH_INTROSPECT_URL=https://{your-idp-domain}/oauth2/v1/introspect
+# 検証モードの選択 (introspect または jwks)
+# デフォルトは introspect です
+OAUTH_VALIDATION_MODE=introspect
 
+# [Introspectionモードの場合] 認可サーバーの Introspection API エンドポイント
+OAUTH_INTROSPECT_URL=https://{your-idp-domain}/oauth2/v1/introspect
 # サーバー検証用のクライアントIDとシークレット (Basic認証用)
 OAUTH_CLIENT_ID=your-server-client-id
 OAUTH_CLIENT_SECRET=your-server-client-secret
+# Introspection結果のキャッシュTTL（秒）
+AUTH_INTROSPECT_CACHE_TTL_SECONDS=60
+
+# [JWKSモードの場合] 認可サーバーの JWKS URL
+# OAUTH_VALIDATION_MODE=jwks の場合は必須です
+# OAUTH_JWKS_URL=https://{your-idp-domain}/oauth2/v1/keys
 
 # --- オプション: AIモデルの設定 ---
 # 詳細は docs/MODELS.md を参照してください。
@@ -78,12 +87,16 @@ docker compose logs caddy
 ## 4. セキュリティ上の留意事項 (重要)
 
 ### キャッシュによるアカウント停止のタイムラグ
-本システムでは、認可サーバーへの負荷（レートリミット）を軽減するため、認証結果を Redis にキャッシュしています。
-そのため、退職等により認可サーバー側で**アカウントを即時停止した場合でも、Redisのキャッシュが有効な期間（デフォルト60秒）はMCPサーバーにアクセスできてしまう**というタイムラグが発生します。
 
-万が一、即時かつ強制的に全セッションを遮断する必要がある重大なインシデントが発生した場合は、Redis のキャッシュをフラッシュしてください。
+`OAUTH_VALIDATION_MODE=introspect` の場合、認可サーバーへの負荷（レートリミット）を軽減するため、認証結果を Valkey (Redis互換) にキャッシュしています。
+そのため、退職等により認可サーバー側で**アカウントを即時停止（Revoke）した場合でも、キャッシュが有効な期間（デフォルト60秒）はMCPサーバーにアクセスできてしまう**というタイムラグが発生します。
+このタイムラグは `AUTH_INTROSPECT_CACHE_TTL_SECONDS` で調整可能です。
+
+※ `OAUTH_VALIDATION_MODE=jwks` の場合、トークン自体の検証はローカルで都度行われるためキャッシュによる遅延はありませんが、トークンの有効期限 (`exp`) が切れるまでは無効化を検知できません。即時無効化の影響を小さくするには、IdP側でアクセストークンの有効期限を短く（例: 5〜15分）設定することを推奨します。
+
+万が一、即時かつ強制的に全セッションを遮断する必要がある重大なインシデントが発生した場合は、Valkey(Redis) のキャッシュをフラッシュしてください。
 
 ```bash
 cd deploy
-docker compose exec redis redis-cli FLUSHALL
+docker compose exec valkey redis-cli FLUSHALL
 ```

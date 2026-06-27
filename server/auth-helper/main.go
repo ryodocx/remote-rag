@@ -14,9 +14,12 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
+	"github.com/MicahParks/keyfunc/v3"
+	"github.com/golang-jwt/jwt/v5"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
@@ -33,13 +36,16 @@ import (
 )
 
 var (
-	cacheInstance      Cache  // キャッシュインターフェースのインスタンス
-	oauthIntrospectURL string // OAuth2.0 Token Introspection エンドポイントのURL
-	oauthClientID      string // Introspection用のクライアントID (Basic認証用)
-	oauthClientSecret  string // Introspection用のクライアントシークレット (Basic認証用)
-	tracer             = otel.Tracer("auth-helper")
-	meter              = otel.Meter("auth-helper")
-	authCounter        metric.Int64Counter
+	cacheInstance       Cache  // キャッシュインターフェースのインスタンス
+	oauthIntrospectURL  string // OAuth2.0 Token Introspection エンドポイントのURL
+	oauthClientID       string // Introspection用のクライアントID (Basic認証用)
+	oauthClientSecret   string // Introspection用のクライアントシークレット (Basic認証用)
+	oauthValidationMode string // 検証モード ("introspect" or "jwks")
+	jwksInstance        keyfunc.Keyfunc // JWKSインスタンス
+	introspectCacheTTL  time.Duration   // Introspectionモード時のキャッシュTTL
+	tracer              = otel.Tracer("auth-helper")
+	meter               = otel.Meter("auth-helper")
+	authCounter         metric.Int64Counter
 )
 
 func init() {
@@ -53,13 +59,49 @@ func init() {
 		cacheInstance = NewRedisCache(os.Getenv("REDIS_HOST"), os.Getenv("REDIS_PORT"))
 	}
 
-	// Introspection用の設定を環境変数から取得します
-	oauthIntrospectURL = os.Getenv("OAUTH_INTROSPECT_URL")
-	oauthClientID = os.Getenv("OAUTH_CLIENT_ID")
-	oauthClientSecret = os.Getenv("OAUTH_CLIENT_SECRET")
+	// 動作モードと共通設定
+	oauthValidationMode = os.Getenv("OAUTH_VALIDATION_MODE")
+	if oauthValidationMode == "" {
+		oauthValidationMode = "introspect"
+	}
 
-	if oauthIntrospectURL == "" || oauthClientID == "" || oauthClientSecret == "" {
-		log.Println("WARNING: OAUTH_INTROSPECT_URL, OAUTH_CLIENT_ID, or OAUTH_CLIENT_SECRET is missing.")
+	ttlStr := os.Getenv("AUTH_INTROSPECT_CACHE_TTL_SECONDS")
+	if ttlStr != "" {
+		if ttl, err := strconv.Atoi(ttlStr); err == nil {
+			introspectCacheTTL = time.Duration(ttl) * time.Second
+		} else {
+			introspectCacheTTL = 60 * time.Second
+		}
+	} else {
+		introspectCacheTTL = 60 * time.Second
+	}
+
+	if oauthValidationMode == "jwks" {
+		jwksURL := os.Getenv("OAUTH_JWKS_URL")
+		if jwksURL == "" {
+			log.Fatal("OAUTH_JWKS_URL is required when OAUTH_VALIDATION_MODE is jwks")
+		}
+		
+		options := keyfunc.Options{
+			RefreshInterval: time.Hour,
+			RefreshRateLimit: 5 * time.Minute,
+		}
+		var err error
+		jwksInstance, err = keyfunc.NewDefault([]string{jwksURL}, options)
+		if err != nil {
+			log.Fatalf("Failed to create JWKS from URL: %v", err)
+		}
+		log.Printf("JWKS mode enabled. JWKS URL: %s", jwksURL)
+	} else {
+		// Introspection用の設定を環境変数から取得します
+		oauthIntrospectURL = os.Getenv("OAUTH_INTROSPECT_URL")
+		oauthClientID = os.Getenv("OAUTH_CLIENT_ID")
+		oauthClientSecret = os.Getenv("OAUTH_CLIENT_SECRET")
+
+		if oauthIntrospectURL == "" || oauthClientID == "" || oauthClientSecret == "" {
+			log.Println("WARNING: OAUTH_INTROSPECT_URL, OAUTH_CLIENT_ID, or OAUTH_CLIENT_SECRET is missing.")
+		}
+		log.Printf("Introspection mode enabled. Cache TTL: %v", introspectCacheTTL)
 	}
 }
 
@@ -331,6 +373,56 @@ func introspectToken(ctx context.Context, token string) (*IntrospectionResponse,
 	return &result, nil
 }
 
+func verifyJWT(ctx context.Context, tokenString string) (*IntrospectionResponse, error) {
+	ctx, span := tracer.Start(ctx, "verifyJWT")
+	defer span.End()
+
+	token, err := jwt.Parse(tokenString, jwksInstance.Keyfunc)
+	if err != nil {
+		span.SetAttributes(attribute.String("error.reason", "jwt_parse_error"))
+		return nil, err
+	}
+
+	if !token.Valid {
+		span.SetAttributes(attribute.String("error.reason", "invalid_jwt"))
+		return nil, errors.New("invalid jwt")
+	}
+
+	claims, ok := token.Claims.(jwt.MapClaims)
+	if !ok {
+		span.SetAttributes(attribute.String("error.reason", "invalid_claims_type"))
+		return nil, errors.New("invalid claims type")
+	}
+
+	resp := &IntrospectionResponse{Active: true}
+	
+	if iss, ok := claims["iss"].(string); ok {
+		resp.Iss = iss
+	}
+	if aud, ok := claims["aud"]; ok {
+		resp.Aud = aud
+	}
+	if clientID, ok := claims["client_id"].(string); ok {
+		resp.ClientID = clientID
+	} else if cid, ok := claims["cid"].(string); ok {
+		resp.ClientID = cid
+	}
+	if scope, ok := claims["scope"].(string); ok {
+		resp.Scope = scope
+	}
+	if sub, ok := claims["sub"].(string); ok {
+		resp.Sub = sub
+	}
+	if email, ok := claims["email"].(string); ok {
+		resp.Email = email
+	}
+	if groups, ok := claims["groups"]; ok {
+		resp.Groups = groups
+	}
+
+	return resp, nil
+}
+
 func authHandler(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	ctx, span := tracer.Start(ctx, "authHandler_logic")
@@ -352,25 +444,39 @@ func authHandler(w http.ResponseWriter, r *http.Request) {
 
 	tokenHash := hashToken(token)
 
-	val, err := cacheInstance.Get(ctx, tokenHash)
-	if err == nil && val == "valid" {
-		span.SetAttributes(attribute.Bool("cache.hit", true))
-		w.WriteHeader(http.StatusOK)
-		return
-	}
-	span.SetAttributes(attribute.Bool("cache.hit", false))
+	var resp *IntrospectionResponse
 
-	resp, err := introspectToken(ctx, token)
-	if err != nil {
-		log.Printf("Error introspecting token: %v", err)
-		span.RecordError(err)
-		w.WriteHeader(http.StatusInternalServerError)
-		return
+	if oauthValidationMode == "jwks" {
+		resp, err = verifyJWT(ctx, token)
+		if err != nil {
+			log.Printf("Error verifying JWT: %v", err)
+			span.RecordError(err)
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+	} else {
+		val, err := cacheInstance.Get(ctx, tokenHash)
+		if err == nil && val == "valid" {
+			span.SetAttributes(attribute.Bool("cache.hit", true))
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+		span.SetAttributes(attribute.Bool("cache.hit", false))
+
+		resp, err = introspectToken(ctx, token)
+		if err != nil {
+			log.Printf("Error introspecting token: %v", err)
+			span.RecordError(err)
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
 	}
 
 	if resp != nil && resp.Active {
 		if validateClientConstraints(resp, span) && validateUserConstraints(resp, span) {
-			cacheInstance.Set(ctx, tokenHash, "valid", 60*time.Second)
+			if oauthValidationMode != "jwks" {
+				cacheInstance.Set(ctx, tokenHash, "valid", introspectCacheTTL)
+			}
 			span.SetAttributes(attribute.String("auth.status", "authorized"))
 			if authCounter != nil {
 				authCounter.Add(ctx, 1, metric.WithAttributes(attribute.String("status", "authorized")))
