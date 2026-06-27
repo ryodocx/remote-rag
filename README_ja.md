@@ -21,7 +21,7 @@
 
 <br />
 
-社内ナレッジベース（社内Wikiや機密文書等）を検索するための高精度な**RAG（検索拡張生成）エンジン**を、[Model Context Protocol (MCP)](https://modelcontextprotocol.io/) を通じてAIエージェント（Cursor, Claude Desktop等）に提供するエンタープライズ向け基盤です。
+社内ナレッジベース（社内Wikiや機密文書等）を検索するための高精度な**RAG（検索拡張生成）エンジン**を、AIエージェント（Cursor, Claude Desktop等）, ChatGPT, Copilot Chat等のチャットUIに提供するエンタープライズ向け基盤です。
 
 単なる検索サーバーにとどまらず、**汎用的な OAuth 2.0 / OIDC 認証**とプロキシ機構を統合し、セキュアなネットワーク越しのアクセスを標準でサポートしています。
 
