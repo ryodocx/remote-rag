@@ -25,5 +25,4 @@
 - [x] EXACT_MATCH_RELEVANCE_THRESHOLD DEFAULT_RELEVANCE_THRESHOLD をカスタム可能にする
   - 環境変数から読み込めるよう対応済み。
 - [ ] 主要ユースケースの記載
-  - okta + 任意のナレッジデータソース
-  
+  - ChatGPT / codex cli -> oktaで保護された任意のナレッジデータソース
