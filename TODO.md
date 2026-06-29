@@ -27,9 +27,8 @@
   - 環境変数から読み込めるよう対応済み。
 - [ ] 主要ユースケースの記載
   - ChatGPT / codex cli -> oktaで保護された任意のナレッジデータソース
-- [ ] streamable HTTPの実装
+- [ ] streamable HTTPの実装 (gemini enterpriseではSSE非対応な噂)
 - [ ] RAGサーバ部分を差し替え可能にする
-
 
 ## Chat AI Service 外部連携仕様メモ
 - ChatGPT
