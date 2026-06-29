@@ -1,0 +1,64 @@
+# Default values for remote-rag.
+global:
+  imagePullSecrets: []
+  nameOverride: ""
+  fullnameOverride: ""
+
+serviceAccount:
+  create: true
+  annotations: {}
+  # The name of the service account to use.
+  # If not set and create is true, a name is generated using the fullname template
+  name: ""
+
+caddy:
+  enabled: true
+  image:
+    repository: caddy
+    tag: 2-alpine
+    pullPolicy: IfNotPresent
+  service:
+    type: ClusterIP
+    port: 8080
+
+authHelper:
+  image:
+    repository: ghcr.io/ryodocx/remote-rag-auth-helper
+    tag: latest
+    pullPolicy: Always
+  service:
+    type: ClusterIP
+    port: 8000
+  env:
+    OAUTH_VALIDATION_MODE: "jwks"
+    AUTH_INTROSPECT_CACHE_TTL_SECONDS: "60"
+    OAUTH_JWKS_URL: ""
+    OAUTH_INTROSPECT_URL: ""
+    OAUTH_CLIENT_ID: ""
+    OAUTH_CLIENT_SECRET: ""
+
+mcpServer:
+  image:
+    repository: ghcr.io/ryodocx/remote-rag-core
+    tag: latest
+    pullPolicy: Always
+  env:
+    LANCEDB_PATH: ""
+    AWS_ACCESS_KEY_ID: ""
+    AWS_SECRET_ACCESS_KEY: ""
+    AWS_REGION: ""
+    AWS_ENDPOINT_URL_S3: ""
+
+
+
+valkey:
+  enabled: true
+  image:
+    repository: valkey/valkey
+    tag: 8-alpine
+    pullPolicy: IfNotPresent
+  service:
+    type: ClusterIP
+    port: 6379
+
+

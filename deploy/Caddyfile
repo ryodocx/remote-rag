@@ -1,0 +1,48 @@
+{
+    servers {
+        metrics
+    }
+    tracing {
+        span rrag_proxy
+    }
+}
+
+:2019 {
+    metrics
+}
+
+(backend_routes) {
+    # 統合サーバー (REST API & MCP Server)
+    # /api/* や /mcp/* などのパスをそのまま転送します
+    reverse_proxy rrag-server:8000 {
+        header_up Host {host}
+        # SSE (Server-Sent Events) 対応のため、バッファリングを完全に無効化する
+        flush_interval -1
+    }
+}
+
+:8080 {
+    # 外部API (ChatGPT Actions等) 向け: Introspectionによる認証
+    handle_path /introspect/* {
+        forward_auth auth-helper:8000 {
+            uri /auth/introspect
+        }
+        import backend_routes
+    }
+
+    # ローカルツール(Bridge CLI)向け: JWKSによる認証 (aud = Client ID)
+    handle_path /id_token/* {
+        forward_auth auth-helper:8000 {
+            uri /auth/jwks?expected_aud={$OAUTH_CLIENT_ID}
+        }
+        import backend_routes
+    }
+
+    # 外部API向け: JWKSによる認証 (JWT アクセストークン / aud = Resource URI)
+    handle_path /jwt/* {
+        forward_auth auth-helper:8000 {
+            uri /auth/jwks?expected_aud={$AUTH_EXPECTED_AUD}
+        }
+        import backend_routes
+    }
+}
