@@ -29,3 +29,21 @@
   - ChatGPT / codex cli -> oktaで保護された任意のナレッジデータソース
 - [ ] streamable HTTPの実装
 - [ ] RAGサーバ部分を差し替え可能にする
+
+
+## Chat AI Service 外部連携仕様メモ
+- ChatGPT
+  - https://developers.openai.com/api/docs/actions/getting-started
+  - 機能名: GPT Actions
+  - 必要なライセンス:
+  - 対応プロトコル: REST API (OpenAPI schema必須？)
+  - 認証方式: OAuth対応 https://developers.openai.com/api/docs/actions/authentication#oauth
+
+- Claude
+  - https://support.claude.com/en/articles/11176164-use-connectors-to-extend-claude-s-capabilities#h_4201f9e625
+  - https://support.claude.com/en/articles/11175166-get-started-with-custom-connectors-using-remote-mcp
+  - 機能名: Custom Connectors (Remote MCP)
+- Gemini
+  - https://docs.cloud.google.com/gemini/enterprise/docs/connectors/custom-mcp-server/set-up-custom-mcp-server?hl=ja
+  - 機能名: MCP Data Store / Custom Actions
+- MS Copilot
