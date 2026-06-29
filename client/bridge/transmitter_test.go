@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bytes"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -67,18 +66,43 @@ func TestTransmitter_StartAndSend(t *testing.T) {
 	// Since stdin has two lines and then hits EOF, it will close StdinChan and return.
 	transmitter.Start()
 
+	// Poll until messages are received or timeout
+	timeout := time.After(2 * time.Second)
+	ticker := time.NewTicker(50 * time.Millisecond)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-timeout:
+			t.Fatal("Timed out waiting for messages")
+		case <-ticker.C:
+			mu.Lock()
+			count := len(receivedMsgs)
+			mu.Unlock()
+			if count == 2 {
+				goto done
+			}
+		}
+	}
+
+done:
 	mu.Lock()
 	defer mu.Unlock()
 
 	if len(receivedMsgs) != 2 {
-		t.Fatalf("Expected 2 received messages, got %d", len(receivedMsgs))
+		t.Fatalf("Expected 2 received messages, got %d: %v", len(receivedMsgs), receivedMsgs)
 	}
 
-	if receivedMsgs[0] != "message1" {
-		t.Errorf("Expected message1, got %s", receivedMsgs[0])
+	// 非同期送信のため到着順は非決定的。set で存在チェックを行う
+	msgSet := make(map[string]bool)
+	for _, m := range receivedMsgs {
+		msgSet[m] = true
 	}
-	if receivedMsgs[1] != "message2" {
-		t.Errorf("Expected message2, got %s", receivedMsgs[1])
+	if !msgSet["message1"] {
+		t.Errorf("Expected message1 in received messages, got: %v", receivedMsgs)
+	}
+	if !msgSet["message2"] {
+		t.Errorf("Expected message2 in received messages, got: %v", receivedMsgs)
 	}
 
 	for i, h := range receivedHeaders {

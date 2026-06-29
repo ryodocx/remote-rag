@@ -63,15 +63,16 @@ class OnnxCrossEncoderReranker(Reranker):
         logger.info(f"Loading CrossEncoder '{self.model_name}' with ONNX backend...")
         
         model_kwargs = {}
-        if self.onnx_file_name:
+        onnx_disabled = not self.onnx_file_name or str(self.onnx_file_name).lower() == "none"
+        if not onnx_disabled:
             model_kwargs["file_name"] = self.onnx_file_name
         
         model = CrossEncoder(
             self.model_name,
             device=self.device,
             trust_remote_code=self.trust_remote_code,
-            backend="onnx",
-            model_kwargs=model_kwargs,
+            backend=None if onnx_disabled else "onnx",
+            model_kwargs=model_kwargs if model_kwargs and not onnx_disabled else None,
         )
         logger.info("CrossEncoder model loaded with ONNX backend successfully.")
         return model

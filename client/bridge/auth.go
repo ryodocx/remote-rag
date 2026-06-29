@@ -267,6 +267,11 @@ func saveTokenData(data TokenData) error {
 	return nil
 }
 
+// InvalidateToken deletes the token from the local keyring
+func InvalidateToken() error {
+	return keyring.Delete(serviceName, getAccountName())
+}
+
 // GetValidToken はKeychainからトークンを取得し、有効期限を確認します。トークンが存在しないか期限切れの場合は再認証を促します。
 func GetValidToken() (TokenData, error) {
 	secret, err := keyringGet(serviceName, getAccountName())

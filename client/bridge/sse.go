@@ -72,6 +72,9 @@ func (c *SSEClient) Start() {
 					resp.Body.Close()
 				} else {
 					if resp != nil {
+						if resp.StatusCode == http.StatusUnauthorized {
+							InvalidateToken()
+						}
 						body, _ := io.ReadAll(resp.Body)
 						fmt.Fprintf(os.Stderr, "SSE connection failed with status %d: %s\n", resp.StatusCode, string(body))
 						resp.Body.Close()

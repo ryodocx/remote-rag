@@ -17,9 +17,9 @@ Custom GPTs の Actions に設定するためのスキーマ（`openapi.json`）
 
 サーバーがデプロイされたら、ブラウザまたは `curl` で以下にアクセスし、JSONファイルを保存します。
 ```bash
-curl -O https://rrag.example.com/api/openapi.json
+curl -O https://rrag.example.com/introspect/openapi.json
 ```
-*(FastAPIは `/api/openapi.json` に OpenAPI スキーマを公開します)*
+*(FastAPIは `/introspect/openapi.json` に OpenAPI スキーマを公開します)*
 
 ---
 
@@ -30,7 +30,7 @@ curl -O https://rrag.example.com/api/openapi.json
 3. 画面下部の **Create new action** をクリックします。
 
 ### Schema の設定
-取得した `openapi.json` の内容を **Schema** エリアに貼り付けるか、「Import from URL」に `https://rrag.example.com/api/openapi.json` を入力してインポートします。
+取得した `openapi.json` の内容を **Schema** エリアに貼り付けるか、「Import from URL」に `https://rrag.example.com/introspect/openapi.json` を入力してインポートします。
 
 ### Authentication の設定
 スキーマの下にある **Authentication** の歯車アイコンをクリックし、以下のように設定します。

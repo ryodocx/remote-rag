@@ -7,7 +7,9 @@ from mcp.client.stdio import stdio_client
 @pytest.mark.asyncio
 async def test_mcp_client_search():
     """MCPクライアントの接続と検索機能をテストする統合テスト"""
-    venv_python = os.path.join(os.path.dirname(os.path.dirname(__file__)), ".venv", "Scripts", "python.exe")
+    bin_dir = "Scripts" if os.name == "nt" else "bin"
+    exe_name = "python.exe" if os.name == "nt" else "python"
+    venv_python = os.path.join(os.path.dirname(os.path.dirname(__file__)), ".venv", bin_dir, exe_name)
     
     if not os.path.exists(venv_python):
         pytest.skip("Venv python not found. Skipping stdio client integration test.")

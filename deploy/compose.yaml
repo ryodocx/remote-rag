@@ -25,6 +25,8 @@ services:
       - ./Caddyfile:/etc/caddy/Caddyfile
     environment:
       - OTEL_EXPORTER_OTLP_ENDPOINT=${OTEL_EXPORTER_OTLP_ENDPOINT:-}
+      - OAUTH_CLIENT_ID=${OAUTH_CLIENT_ID:-}
+      - AUTH_EXPECTED_AUD=${AUTH_EXPECTED_AUD:-}
     depends_on:
       - auth-helper
       - rrag-server

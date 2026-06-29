@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -17,6 +18,8 @@ type Transmitter struct {
 	PostURLChan chan string
 	StdinChan   chan string
 	postClient  *http.Client
+	postURL     string
+	urlMutex    sync.RWMutex
 }
 
 func NewTransmitter(config *Config, postURLChan chan string) *Transmitter {
@@ -28,8 +31,23 @@ func NewTransmitter(config *Config, postURLChan chan string) *Transmitter {
 	}
 }
 
+func (t *Transmitter) getSafePostURL() string {
+	t.urlMutex.RLock()
+	defer t.urlMutex.RUnlock()
+	return t.postURL
+}
+
+func (t *Transmitter) setSafePostURL(url string) {
+	t.urlMutex.Lock()
+	defer t.urlMutex.Unlock()
+	t.postURL = url
+}
+
 // getToken は認証を実行し、設定に応じたトークンを取得します。
 func (t *Transmitter) getToken() (string, error) {
+	if t.Config.NoAuth {
+		return "dummy-token", nil
+	}
 	tokenData, err := GetValidToken()
 	if err != nil {
 		return "", err
@@ -72,18 +90,23 @@ func (t *Transmitter) Start() {
 			}
 
 			// SSEからエンドポイント情報を受け取るまで待機
-			if postURL == "" {
+			u := t.getSafePostURL()
+			if u == "" {
 				fmt.Fprintf(os.Stderr, "Waiting for endpoint event before sending message...\n")
-				postURL = <-t.PostURLChan
+				newURL := <-t.PostURLChan
+				t.setSafePostURL(newURL)
+				u = newURL
 			} else {
 				// 新しいエンドポイントが来ている場合は更新する
 				select {
-				case postURL = <-t.PostURLChan:
+				case newURL := <-t.PostURLChan:
+					t.setSafePostURL(newURL)
+					u = newURL
 				default:
 				}
 			}
 
-			t.sendPostRequest(postURL, msg)
+			go t.sendPostRequest(u, msg)
 		}
 	}
 }
@@ -111,7 +134,10 @@ func (t *Transmitter) sendPostRequest(postURL, msg string) {
 	}
 	defer postResp.Body.Close()
 
-	if postResp.StatusCode >= 400 {
+	if postResp.StatusCode == http.StatusUnauthorized {
+		fmt.Fprintf(os.Stderr, "Received 401 Unauthorized. Invalidating local cached credentials...\n")
+		InvalidateToken()
+	} else if postResp.StatusCode >= 400 {
 		fmt.Fprintf(os.Stderr, "POST returned status %d\n", postResp.StatusCode)
 	}
 

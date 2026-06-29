@@ -18,7 +18,7 @@ OAUTH_INTROSPECT_URL=https://{your-idp-domain}/oauth2/v1/introspect
 OAUTH_CLIENT_ID=your-server-client-id
 OAUTH_CLIENT_SECRET=your-server-client-secret
 # Introspection結果のキャッシュTTL（秒）
-AUTH_INTROSPECT_CACHE_TTL_SECONDS=60
+AUTH_INTROSPECT_CACHE_TTL_SECONDS=600
 
 # [JWKSモードの場合] 認可サーバーの JWKS URL
 # OAUTH_VALIDATION_MODE=jwks の場合は必須です
@@ -45,6 +45,20 @@ export OAUTH_CLIENT_ID=your-client-id
 # 接続先MCPサーバーのURL
 export MCP_REMOTE_URL=https://your-caddy-server-domain
 ```
+
+### 高度な環境変数オプション (Advanced Configurations)
+特定のテストやカスタマイズが必要な場合に利用可能です。
+
+| コンポーネント | 環境変数名 | デフォルト値 | 用途 |
+| :--- | :--- | :--- | :--- |
+| **client** | `RRAG_PROFILE` | `""` | 複数アカウント切り替え時のキーリング名接尾辞として使用。 |
+| **server (Go)** | `MOCK_AUTH` | `""` | `true` に設定すると外部IdPへの検証をスキップし全リクエストを許可（ローカルテスト用）。 |
+| **server (Python)** | `ENABLE_INGEST_API` | `"false"` | `"true"` でドキュメント取り込み用の `/ingest` API を有効化。 |
+| **server (Python)** | `LANCEDB_PATH` | `"server/core/data/lancedb"` | LanceDBのデータベース保存先ディレクトリを指定。 |
+| **server (Python)** | `VECTOR_DIM` | 未設定 | ベクトル埋め込み次元数を明示。設定するとモデル事前読み込みを抑止可能。 |
+| **server (Python)** | `WIKI_SEARCH_MAX_TOKENS` | `4000` | 検索結果からLLMに渡すコンテキストの最大トークン数を制限。 |
+| **server (Python)** | `DEFAULT_RELEVANCE_THRESHOLD` | `-1.0` | リランカースコアの最低基準値。 |
+| **server (Python)** | `EXACT_MATCH_RELEVANCE_THRESHOLD`| `-5.0` | 完全一致テキスト判定時の閾値緩和幅。 |
 
 ## 2. デプロイ手順
 
@@ -89,7 +103,7 @@ docker compose logs caddy
 ### キャッシュによるアカウント停止のタイムラグ
 
 `OAUTH_VALIDATION_MODE=introspect` の場合、認可サーバーへの負荷（レートリミット）を軽減するため、認証結果を Valkey (Redis互換) にキャッシュしています。
-そのため、退職等により認可サーバー側で**アカウントを即時停止（Revoke）した場合でも、キャッシュが有効な期間（デフォルト60秒）はMCPサーバーにアクセスできてしまう**というタイムラグが発生します。
+そのため、退職等により認可サーバー側で**アカウントを即時停止（Revoke）した場合でも、キャッシュが有効な期間（デフォルト600秒）はMCPサーバーにアクセスできてしまう**というタイムラグが発生します。
 このタイムラグは `AUTH_INTROSPECT_CACHE_TTL_SECONDS` で調整可能です。
 
 ※ `OAUTH_VALIDATION_MODE=jwks` の場合、トークン自体の検証はローカルで都度行われるためキャッシュによる遅延はありませんが、トークンの有効期限 (`exp`) が切れるまでは無効化を検知できません。即時無効化の影響を小さくするには、IdP側でアクセストークンの有効期限を短く（例: 5〜15分）設定することを推奨します。

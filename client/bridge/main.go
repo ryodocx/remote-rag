@@ -9,10 +9,12 @@ import (
 type Config struct {
 	RemoteURL  string
 	UseIDToken bool
+	NoAuth     bool
 }
 
 func ParseConfig() *Config {
 	urlFlag := flag.String("url", "", "Remote MCP Server URL")
+	noAuthFlag := flag.Bool("no-auth", false, "Bypass local keyring and OAuth checking")
 	flag.Parse()
 
 	remoteURL := *urlFlag
@@ -28,6 +30,7 @@ func ParseConfig() *Config {
 	return &Config{
 		RemoteURL:  remoteURL,
 		UseIDToken: os.Getenv("USE_ID_TOKEN") == "true",
+		NoAuth:     *noAuthFlag,
 	}
 }
 
@@ -35,10 +38,14 @@ func main() {
 	config := ParseConfig()
 
 	// 初回認証を実行し、トークンが取得可能か確認する
-	_, err := GetValidToken()
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Failed to get initial auth token: %v\n", err)
-		os.Exit(1)
+	if !config.NoAuth {
+		_, err := GetValidToken()
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Failed to get initial auth token: %v\n", err)
+			os.Exit(1)
+		}
+	} else {
+		fmt.Fprintf(os.Stderr, "Running in No-Auth mode bypass.\n")
 	}
 
 	fmt.Fprintf(os.Stderr, "Initial connection to remote MCP server established.\n")

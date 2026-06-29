@@ -108,12 +108,23 @@ func (m *MemoryCache) cleanupLoop() {
 
 func (m *MemoryCache) Get(ctx context.Context, key string) (string, error) {
 	m.mu.RLock()
-	defer m.mu.RUnlock()
 	item, found := m.items[key]
+	m.mu.RUnlock()
+	
 	if !found {
 		return "", ErrCacheMiss
 	}
+	
 	if time.Now().After(item.expiry) {
+		// ダブルチェック: Lockを取得してから再度期限切れと存在を確認する
+		m.mu.Lock()
+		defer m.mu.Unlock()
+		
+		item, found = m.items[key]
+		if found && time.Now().After(item.expiry) {
+			delete(m.items, key)
+		}
+		
 		return "", ErrCacheMiss
 	}
 	return item.value, nil

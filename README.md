@@ -146,17 +146,7 @@ docker exec -it rrag-server python scripts/ingest_cli.py wiki --count 20
 ### 3. Client (Bridge) Installation
 Prepare the Bridge CLI on the local PC running the AI agent.
 
-**macOS / Linux (Homebrew):**
-```bash
-brew tap ryodocx/remote-rag
-brew install rrag-bridge
-```
-
-**Windows (Scoop):**
-```powershell
-scoop bucket add rrag https://github.com/ryodocx/remote-rag.git
-scoop install rrag-bridge
-```
+*(Homebrew and Scoop packages are currently under preparation. Please use `go install` or manual download below.)*
 
 **Manual Download (Windows, etc.):**
 1. Download the archive for your environment (e.g., `rrag-bridge-windows-amd64.zip`) from the [GitHub Releases](https://github.com/ryodocx/remote-rag/releases) page.
@@ -177,7 +167,7 @@ Register the server in your AI agent's MCP configuration file (e.g., `claude_des
   "mcpServers": {
     "rrag": {
       "command": "/absolute/path/to/rrag-bridge",
-      "args": ["--url", "https://<your-deployed-domain>/mcp/sse"]
+      "args": ["--url", "https://<your-deployed-domain>/id_token/mcp/sse"]
     }
   }
 }
@@ -199,6 +189,7 @@ OAUTH_INTROSPECT_URL=
 OAUTH_CLIENT_ID=
 OAUTH_CLIENT_SECRET=
 OAUTH_JWKS_URL=
+MOCK_AUTH=true
 ```
 *(The Bridge CLI client requests will pass through even with a dummy token)*
 

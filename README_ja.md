@@ -146,19 +146,7 @@ docker exec -it rrag-server python scripts/ingest_cli.py wiki --count 20
 ### 3. クライアント(Bridge)のインストール
 次に、AIエージェント（手元のPC）で動作するブリッジCLIを用意します。
 
-**Homebrew を利用したインストール (macOS / Linux):**
-公式リポジトリのTapを利用して簡単にインストールできます。
-```bash
-brew tap ryodocx/remote-rag
-brew install rrag-bridge
-```
-
-**Scoop を利用したインストール (Windows):**
-Windows環境では、Scoopを利用して簡単にインストールできます。
-```powershell
-scoop bucket add rrag https://github.com/ryodocx/remote-rag.git
-scoop install rrag-bridge
-```
+*(Homebrew および Scoop 用のパッケージは現在準備中です。以下の `go install` または手動ダウンロードをご利用ください)*
 
 **手動ダウンロードとインストール (Windows 等):**
 パッケージマネージャを利用しない場合、以下の手順で手動インストールが可能です。
@@ -182,7 +170,7 @@ go install github.com/ryodocx/remote-rag/client/bridge@latest
   "mcpServers": {
     "rrag": {
       "command": "/絶対パス/rrag-bridge",
-      "args": ["--url", "https://<デプロイ先のドメイン>/mcp/sse"]
+      "args": ["--url", "https://<デプロイ先のドメイン>/id_token/mcp/sse"]
     }
   }
 }
@@ -205,6 +193,7 @@ OAUTH_INTROSPECT_URL=
 OAUTH_CLIENT_ID=
 OAUTH_CLIENT_SECRET=
 OAUTH_JWKS_URL=
+MOCK_AUTH=true
 ```
 （※クライアントのBridge CLIからのリクエスト時には、ダミートークンでも接続が通ります）
 

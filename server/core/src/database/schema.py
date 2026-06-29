@@ -60,13 +60,14 @@ class QuantizedSentenceTransformerEmbeddings(TextEmbeddingFunction):
             logging.getLogger(__name__).info(f"Loading Quantized SentenceTransformer ({self.name}) with ONNX...")
             
             kwargs = {}
-            if EMBEDDING_ONNX_FILE and str(EMBEDDING_ONNX_FILE).lower() != "none":
+            onnx_disabled = not EMBEDDING_ONNX_FILE or str(EMBEDDING_ONNX_FILE).lower() == "none"
+            if not onnx_disabled:
                 kwargs["file_name"] = EMBEDDING_ONNX_FILE
                 
             self._model = SentenceTransformer(
                 self.name,
-                backend="onnx",
-                model_kwargs=kwargs if kwargs else None
+                backend=None if onnx_disabled else "onnx",
+                model_kwargs=kwargs if kwargs and not onnx_disabled else None
             )
         
         # 戻り値をリスト形式に変換 (LanceDB用)
@@ -87,7 +88,7 @@ class WikiChunk(LanceModel):
     chunk_id: str
     page_id: str
     text: str = embed_func.SourceField()
-    vector: Vector(embed_func.ndims()) = embed_func.VectorField() # type: ignore
+    vector: Vector(int(os.environ.get("VECTOR_DIM", embed_func.ndims()))) = embed_func.VectorField() # type: ignore
     title: str
     url: str
     metadata: str = "{}" # JSON文字列形式のメタデータ（検索やフィルタ用）

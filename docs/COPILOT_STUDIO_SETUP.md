@@ -9,7 +9,7 @@ Copilot Studio では、外部の REST API (OpenAPI) を「カスタム コネ�
 ## 1. 事前準備
 
 1. **RRAG サーバーの稼働**: RRAG サーバーがデプロイされており、インターネット（または社内ネットワーク）から HTTPS でアクセス可能であること。
-2. **OpenAPI スキーマ**: `https://<your-rrag-domain>/api/openapi.json` が取得できる状態であること。
+2. **OpenAPI スキーマ**: `https://<your-rrag-domain>/introspect/openapi.json` が取得できる状態であること。
 3. **IdP の情報**: Entra ID (旧 Azure AD) 等の Client ID, Client Secret が手元にあること。
 
 ---
@@ -21,7 +21,7 @@ Copilot Studio から RRAG の API を呼び出すためのコネクタを作成
 1. [Power Apps ポータル](https://make.powerapps.com/) または Copilot Studio の管理画面にアクセスします。
 2. 左側のナビゲーションから **[データ] > [カスタム コネクタ]** を選択します。
 3. **[+ 新しいカスタム コネクタ]** をクリックし、**[OpenAPI ファイルのインポート]** または **[URL からインポート]** を選択します。
-4. RRAG サーバーの `/api/openapi.json` のURLを入力（またはダウンロードした JSON ファイルをアップロード）し、コネクタ名を「RRAG Search」等に設定してインポートします。
+4. RRAG サーバーの `/introspect/openapi.json` のURLを入力（またはダウンロードした JSON ファイルをアップロード）し、コネクタ名を「RRAG Search」等に設定してインポートします。
 5. [全般] タブで、スキームが `HTTPS`、ホストが `<your-rrag-domain>` になっていることを確認します。
 
 ---
