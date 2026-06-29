@@ -116,3 +116,141 @@ sequenceDiagram
 ### 3.5 MCP Server (アプリケーション)
 *   **役割**: 実際のRAG検索やデータ処理を行うコアロジックです。
 *   **責務の分離**: 認証に関するコードを一切持ちません。「Caddyを通過したリクエストはすべて安全である」という前提で動作します。
+
+---
+
+## 4. コンポーネント間接続・データフロー詳細
+
+システム内の各コンポーネントがどのように通信し、データおよび認証トークンがどのように伝播するかを詳細に示します。
+
+### 4.1 ネットワーク境界と接続プロトコル
+
+```mermaid
+graph TD
+    subgraph ClientPC [クライアントPC]
+        Agent[AI Agent: Claude/Cursor]
+        Bridge[Bridge CLI]
+        OSKeychain[(OS Keychain)]
+    end
+
+    subgraph DMZ_Server [プロキシサーバー / DMZ]
+        Caddy[Caddy Proxy: 443]
+    end
+
+    subgraph Internal_Network [内部セキュアネットワーク / Container Network]
+        AuthHelper[Auth Helper: Go / 8080]
+        Redis[(Redis / Valkey: 6379)]
+        MCPServer[MCP Server: Python / 8000]
+        LanceDB[(LanceDB files)]
+    end
+
+    subgraph External_Network [外部ネットワーク]
+        IdP((Identity Provider: HTTPS))
+    end
+
+    %% 接続関係
+    Agent -- "1. stdio (stdin/stdout)" --> Bridge
+    Bridge -- "2. HTTPS / SSE (Bearer Token)" --> Caddy
+    
+    Caddy -- "3. HTTP forward_auth" --> AuthHelper
+    AuthHelper -- "4a. JWKS / Introspect (HTTPS)" --> IdP
+    AuthHelper -- "4b. Cache Token Hash" --> Redis
+    
+    Caddy -- "5. HTTP Proxy (Pre-auth passed)" --> MCPServer
+    MCPServer -- "6. Local File I/O" --> LanceDB
+    
+    %% キーチェーン
+    Bridge <-->|OS API| OSKeychain
+```
+
+| 接続元 | 接続先 | プロトコル | デフォルトポート | 用途・説明 |
+| :--- | :--- | :--- | :--- | :--- |
+| **AI Agent** | **Bridge CLI** | `stdio` | N/A (パイプ) | 標準入出力（stdin/stdout）を介したJSON-RPCによるMCP通信。 |
+| **Bridge CLI** | **Caddy** | `HTTPS (TLS)` / `SSE` | `443` (テスト時 `80`/`8443`等) | 暗号化されたHTTP POST（メッセージ送信）およびServer-Sent Events（メッセージ受信）。 |
+| **Caddy** | **Auth Helper** | `HTTP` | `8080` | `forward_auth`ディレクティブに基づく認証委譲リクエスト。 |
+| **Auth Helper** | **Identity Provider** | `HTTPS` | `443` | JWKS鍵セット取得またはToken Introspectionエンドポイントへの検証要求。 |
+| **Auth Helper** | **Redis / Valkey** | `Redis Protocol` | `6379` | Introspection結果のハッシュキャッシュストアへの接続。 |
+| **Caddy** | **MCP Server** | `HTTP` | `8000` | 認証に成功したリクエストのルーティング転送（SSEストリーム）。 |
+| **MCP Server** | **LanceDB** | `In-process (Arrow)` | N/A (ローカルI/O) | ベクトルデータベースファイル（`data/lancedb/`）への直接接続・クエリ。 |
+
+### 4.2 認証シークレットのライフサイクルと伝播経路
+
+認証トークン（JWTまたはOpaqueトークン）は、取得から検証、中継まで以下の経路をたどります。
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant Agent as AI Agent (stdio)
+    participant Bridge as Bridge CLI
+    participant Keychain as OS Keychain
+    participant Caddy as Caddy Proxy
+    participant Auth as Auth Helper
+    participant IdP as Identity Provider
+
+    Note over Bridge, Keychain: 1. トークンロード/取得フェーズ
+    Bridge->>Keychain: トークン取得要求 (プロファイル別)
+    alt トークン未存在 / 期限切れ
+        Bridge->>IdP: OAuth2 PKCE 認可フロー (ブラウザ起動)
+        IdP-->>Bridge: アクセストークン / IDトークン返却
+        Bridge->>Keychain: トークンを暗号化保存
+    else トークン有効
+        Keychain-->>Bridge: トークン返却
+    end
+
+    Note over Agent, Caddy: 2. リクエスト送信フェーズ
+    Agent->>Bridge: JSON-RPC リクエスト (stdin)
+    Bridge->>Caddy: HTTP POST /id_token/mcp/messages<br/>Authorization: Bearer <Token>
+
+    Note over Caddy, IdP: 3. 認証委譲・検証フェーズ
+    Caddy->>Auth: forward_auth /auth/jwks?expected_aud=...<br/>Header: Authorization: Bearer <Token>
+    alt JWKSローカル検証モード
+        Auth->>Auth: JWKS公開鍵で署名検証 & audクレームチェック
+    else Introspectionモード
+        Auth->>IdP: Token Introspection (RFC 7662)
+    end
+    Auth->>Auth: 属性ベースアクセス制御 (ABAC) 評価
+    Auth-->>Caddy: 200 OK (検証成功)
+
+    Note over Caddy, Agent: 4. アプリケーション中継フェーズ
+    Caddy->>Caddy: プレフィックス (/id_token) の除去
+    Caddy->>MCP: HTTP POST /mcp/messages (認証パス済み)
+    MCP-->>Caddy: JSON-RPC レスポンス
+    Caddy-->>Bridge: SSEイベント返却
+    Bridge-->>Agent: JSON-RPC レスポンス (stdout)
+```
+
+### 4.3 テレメトリ（分散トレース）の伝播フロー
+
+本システムは、コンポーネント境界を跨いでパフォーマンス分析およびデバッグを行えるよう、**OpenTelemetry (W3C Trace Context規格)** に準拠したトレースIDの伝播を行います。
+
+1. **Bridge CLI**: API呼び出し開始時に新規 `trace_id` を発行、または親コンテキストを継承。HTTPリクエスト送信時にヘッダーへ注入：
+   - `traceparent: 00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01`
+2. **Caddy**: トラフィックをプロキシする際、ヘッダー内の `traceparent` を壊さず透過的に中継。
+3. **Auth Helper**: 認証処理のスパンを作成し、Bridgeから引き継いだ `traceparent` を基に親スパンと紐付け。
+4. **MCP Server**: PythonのFastAPIがリクエストを受信した際、`traceparent` を解析し、データベースクエリ（LanceDB）や再評価処理（Reranker）の実行スパンを紐付け。
+5. **コレクターへの送信**: 各コンポーネントは `OTEL_EXPORTER_OTLP_ENDPOINT` で指定された共通のAPMコレクター（Jaeger, Grafana Tempo等）へ個別にスパンを送信し、単一の分散トレースとして可視化されます。
+
+---
+
+## 5. 機能提供・コンポーネントマッピング
+
+システムが提供する個別の技術的機能が、どのコンポーネントのどのモジュールで実現されているかをマッピングします。
+
+| 技術機能カテゴリ | 具体的な機能 | 実現コンポーネント | 該当ソースファイル・ディレクティブ | 制御環境変数 / 設定値 |
+| :--- | :--- | :--- | :--- | :--- |
+| **クライアント通信** | stdio-to-sseブリッジ変換 | `Bridge CLI` | [client/bridge/main.go](file:///c:/Users/ryotn/antigravity/remote-rag/client/bridge/main.go)<br/>[client/bridge/sse.go](file:///c:/Users/ryotn/antigravity/remote-rag/client/bridge/sse.go)<br/>[client/bridge/transmitter.go](file:///c:/Users/ryotn/antigravity/remote-rag/client/bridge/transmitter.go) | `MCP_REMOTE_URL` |
+| **クライアント認証** | PKCE認可コードフロー | `Bridge CLI` | [client/bridge/auth.go](file:///c:/Users/ryotn/antigravity/remote-rag/client/bridge/auth.go) | `OAUTH_ISSUER_URL`, `OAUTH_CLIENT_ID` |
+| **トークン保護** | OSネイティブ保護保存 | `Bridge CLI` | [client/bridge/auth.go](file:///c:/Users/ryotn/antigravity/remote-rag/client/bridge/auth.go) (go-keyring) | `RRAG_PROFILE` |
+| **プロキシ制御** | プレフィックスルーティング | `Caddy` | [deploy/Caddyfile](file:///c:/Users/ryotn/antigravity/remote-rag/deploy/Caddyfile) | `Caddyfile`ルーティング規則 |
+| **プロキシ制御** | ストリーム最適化フラッシュ | `Caddy` | [deploy/Caddyfile](file:///c:/Users/ryotn/antigravity/remote-rag/deploy/Caddyfile) | `flush_interval -1` |
+| **トークン検証** | JWKSローカル署名検証 | `Auth Helper` | [server/auth-helper/main.go](file:///c:/Users/ryotn/antigravity/remote-rag/server/auth-helper/main.go) | `OAUTH_VALIDATION_MODE=jwks`<br/>`OAUTH_JWKS_URL` |
+| **トークン検証** | Introspection問合せ | `Auth Helper` | [server/auth-helper/main.go](file:///c:/Users/ryotn/antigravity/remote-rag/server/auth-helper/main.go) | `OAUTH_VALIDATION_MODE=introspect`<br/>`OAUTH_INTROSPECT_URL` |
+| **検証キャッシュ** | トークンSHA-256キャッシュ | `Redis / Valkey`<br/>`Auth Helper` | [server/auth-helper/cache.go](file:///c:/Users/ryotn/antigravity/remote-rag/server/auth-helper/cache.go) | `CACHE_TYPE=redis`<br/>`AUTH_INTROSPECT_CACHE_TTL_SECONDS` |
+| **認可制御** | 属性ベースアクセス制御 (ABAC) | `Auth Helper` | [server/auth-helper/main.go](file:///c:/Users/ryotn/antigravity/remote-rag/server/auth-helper/main.go) (`validate*Constraints`) | `AUTH_FILTER_ISS`<br/>`AUTH_FILTER_AUD`<br/>`AUTH_FILTER_CLIENT_ID`<br/>`AUTH_FILTER_SCOPES`<br/>`AUTH_FILTER_EMAIL_DOMAINS`<br/>`AUTH_FILTER_EMAILS`<br/>`AUTH_FILTER_GROUPS`<br/>`AUTH_FILTER_SUBJECTS` |
+| **MCPプロトコル** | FastMCPツール定義 | `MCP Server` | [server/core/src/mcp_server/server.py](file:///c:/Users/ryotn/antigravity/remote-rag/server/core/src/mcp_server/server.py) | Python実行構成 |
+| **データベース** | ハイブリッドインデックス検索 | `MCP Server`<br/>`LanceDB` | [server/core/src/database/client.py](file:///c:/Users/ryotn/antigravity/remote-rag/server/core/src/database/client.py) | `LANCEDB_PATH` |
+| **RAG/ベクトル** | 量子化モデル埋め込み | `MCP Server` | [server/core/src/database/schema.py](file:///c:/Users/ryotn/antigravity/remote-rag/server/core/src/database/schema.py) | `EMBEDDING_MODEL`<br/>`EMBEDDING_ONNX_FILE`<br/>`VECTOR_DIM` |
+| **RAG/ベクトル** | CrossEncoder再評価 | `MCP Server` | [server/core/src/database/reranker.py](file:///c:/Users/ryotn/antigravity/remote-rag/server/core/src/database/reranker.py) | `RERANKER_MODEL`<br/>`RERANKER_ONNX_FILE` |
+| **RAG検索調整** | 類似度スコア閾値制御 | `MCP Server` | [server/core/src/mcp_server/searcher.py](file:///c:/Users/ryotn/antigravity/remote-rag/server/core/src/mcp_server/searcher.py) | `DEFAULT_RELEVANCE_THRESHOLD`<br/>`EXACT_MATCH_RELEVANCE_THRESHOLD` |
+| **可観測性** | Prometheus & OTel メトリクス | `Auth Helper`<br/>`MCP Server` | [server/auth-helper/main.go](file:///c:/Users/ryotn/antigravity/remote-rag/server/auth-helper/main.go) (initTelemetry) | `OTEL_EXPORTER_OTLP_ENDPOINT`<br/>`OTEL_EXPORTER_OTLP_METRICS_ENABLED` |
+
