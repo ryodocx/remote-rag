@@ -146,7 +146,7 @@ docker exec -it rrag-server python scripts/ingest_cli.py wiki --count 20
 ### 3. Client (Bridge) Installation
 Prepare the Bridge CLI on the local PC running the AI agent.
 
-*(Homebrew and Scoop packages are currently under preparation. Please use `go install` or manual download below.)*
+*(Note: Homebrew formula and Scoop manifests are automatically generated and updated by GitHub Actions during release tags. Prior to a release, please use `go install` or manual download below.)*
 
 **Manual Download (Windows, etc.):**
 1. Download the archive for your environment (e.g., `rrag-bridge-windows-amd64.zip`) from the [GitHub Releases](https://github.com/ryodocx/remote-rag/releases) page.
@@ -182,7 +182,7 @@ Setup complete!
 If you want to easily test in a secure internal network without OAuth, you can bypass authentication.
 
 ### Pattern 1: Mock Authentication at the Proxy
-Leave the auth variables in `deploy/.env` **empty**. The `auth-helper` will consider any Bearer token valid.
+Set `MOCK_AUTH=true` in `deploy/.env` and leave other OAuth-related environment variables **empty**. This tells the `auth-helper` to bypass IdP validation and consider any Bearer token (even a dummy string) valid.
 
 ```env
 OAUTH_INTROSPECT_URL=
@@ -241,6 +241,7 @@ If you don't need network access and just want to search local data, run the Pyt
 | **[Copilot Studio Setup Guide](docs/COPILOT_STUDIO_SETUP.md)** | Custom Connector and OAuth 2.0 configuration for Microsoft Copilot Studio. |
 | **[Web App / REST API Integration Guide](docs/WEB_APP_INTEGRATION.md)** | How to integrate REST API with web apps like Dify, Zapier, and Retool. |
 | **[AI Models Guide](docs/MODELS.md)** | How to swap Embedding/Reranker models, with comparisons for quality, speed, and memory usage. |
+| **[Observability Guide](docs/OBSERVABILITY.md)** | Prometheus metrics, OpenTelemetry tracing configuration, and custom metrics. |
 | **[Development Guide](docs/DEVELOPMENT.md)** | Build instructions, local environments, and testing AI models. |
 
 ---

@@ -146,7 +146,7 @@ docker exec -it rrag-server python scripts/ingest_cli.py wiki --count 20
 ### 3. クライアント(Bridge)のインストール
 次に、AIエージェント（手元のPC）で動作するブリッジCLIを用意します。
 
-*(Homebrew および Scoop 用のパッケージは現在準備中です。以下の `go install` または手動ダウンロードをご利用ください)*
+*(※注意: Homebrew Formula および Scoop マニフェストは、リリース用タグがプッシュされた際に GitHub Actions によって自動的に生成・更新されます。リリース前の段階では、以下の `go install` または手動ダウンロードをご利用ください)*
 
 **手動ダウンロードとインストール (Windows 等):**
 パッケージマネージャを利用しない場合、以下の手順で手動インストールが可能です。
@@ -185,7 +185,7 @@ go install github.com/ryodocx/remote-rag/client/bridge@latest
 社内ネットワーク等の安全な環境で、OAuthによる認証なしに手軽にテスト・運用を行いたい場合、以下の手順で認証をバイパスできます。
 
 ### パターン1: サーバーを立ち上げて認証をモック化する
-Docker Composeで提供されるプロキシ群はそのまま利用しつつ、認証のみをパスさせたい場合は、`deploy/.env` ファイルの認証関連変数を**空**に設定します。
+Docker Composeで提供されるプロキシ群はそのまま利用しつつ、認証をバイパスしてすべてのリクエストを許可するには、`deploy/.env` ファイルで `MOCK_AUTH=true` を設定し、それ以外の認証関連環境変数（`OAUTH_INTROSPECT_URL` や `OAUTH_JWKS_URL` 等）を**空**に設定します。
 これにより `auth-helper` はあらゆるBearerトークン（ダミーの文字列でも可）を「有効」として許可します。
 
 ```env
@@ -249,6 +249,7 @@ MOCK_AUTH=true
 | **[Copilot Studio設定例](docs/COPILOT_STUDIO_SETUP.md)** | Microsoft Copilot Studio のカスタムコネクタを利用して連携する場合の設定手順。 |
 | **[Webアプリ / REST API連携ガイド](docs/WEB_APP_INTEGRATION.md)** | ChatGPT以外のWebアプリケーション (Dify, Zapier, Retool 等) からREST API連携する仕組みについて。 |
 | **[AIモデル設定ガイド](docs/MODELS.md)** | 環境変数を用いたAIモデル（Embedding/Reranker）の柔軟な差し替え方法と、品質・処理速度・メモリ消費の比較表。 |
+| **[可観測性ガイド (Observability)](docs/OBSERVABILITY.md)** | PrometheusメトリクスやOpenTelemetryによる分散トレーシング設定、主要な収集指標について。 |
 | **[開発者ガイド](docs/DEVELOPMENT.md)** | 各コンポーネントのビルド手法、ローカル仮想環境の構築、AIモデル変更時の動作テスト方法。 |
 
 ---

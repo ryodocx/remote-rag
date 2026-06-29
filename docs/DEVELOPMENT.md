@@ -26,9 +26,12 @@ make build
 make build-all
 ```
 
-### Homebrewでの配布について
-現在、GitHub Actions (`.github/workflows/release.yml`) を用いて、新しいバージョンタグがプッシュされると自動で各OS向けのバイナリがビルドされ、リポジトリ内の `Formula/rrag-bridge.rb` が更新されます。
-ユーザーは `brew tap ryodocx/remote-rag` で簡単にインストールできるようになっています。
+### Homebrew および Scoop での配布について
+本プロジェクトでは、新しいバージョンタグがプッシュされると GitHub Actions (`.github/workflows/release.yml`) が起動し、自動的に各OS向けのバイナリビルドが行われます。これと同時に、以下の定義ファイルが自動で更新・コミットされます。
+- **Homebrew Formula**: `Formula/rrag-bridge.rb` (SHA256ハッシュ値を自動埋め込み)
+- **Scoop Manifest**: `bucket/rrag-bridge.json` (Windows向けビルド情報を自動反映)
+
+これにより、ユーザーは `brew tap ryodocx/remote-rag` や Scoop のバケット登録を介して、常に最新バージョンの Bridge CLI を簡単にインストールおよび更新することができます。※リリース前の段階では `Formula/rrag-bridge.rb` にプレースホルダー（`REPLACE_ME_*`）が含まれ、`bucket/` ディレクトリは作成されません。
 
 ## 3. 認証ヘルパー (Auth Helper) の開発
 
