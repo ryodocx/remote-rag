@@ -24,3 +24,6 @@
 - [ ] セッション中にトークン期限が切れた場合、能動的に切断する検討
 - [x] EXACT_MATCH_RELEVANCE_THRESHOLD DEFAULT_RELEVANCE_THRESHOLD をカスタム可能にする
   - 環境変数から読み込めるよう対応済み。
+- [ ] 主要ユースケースの記載
+  - okta + 任意のナレッジデータソース
+  
