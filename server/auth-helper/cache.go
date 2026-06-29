@@ -67,30 +67,42 @@ type memoryItem struct {
 // MemoryCache は Go の組み込みマップと RWMutex を利用した、スレッドセーフなインメモリキャッシュ実装です。
 // ローカルでのテストや、Redisコンテナを起動したくない軽量な環境での利用を想定しています。
 type MemoryCache struct {
-	mu    sync.RWMutex
-	items map[string]memoryItem
+	mu     sync.RWMutex
+	items  map[string]memoryItem
+	stopCh chan struct{}
 }
 
 func NewMemoryCache() *MemoryCache {
 	m := &MemoryCache{
-		items: make(map[string]memoryItem),
+		items:  make(map[string]memoryItem),
+		stopCh: make(chan struct{}),
 	}
 	go m.cleanupLoop()
 	return m
 }
 
+func (m *MemoryCache) Close() error {
+	close(m.stopCh)
+	return nil
+}
+
 func (m *MemoryCache) cleanupLoop() {
 	ticker := time.NewTicker(5 * time.Minute)
 	defer ticker.Stop()
-	for range ticker.C {
-		m.mu.Lock()
-		now := time.Now()
-		for k, v := range m.items {
-			if now.After(v.expiry) {
-				delete(m.items, k)
+	for {
+		select {
+		case <-ticker.C:
+			m.mu.Lock()
+			now := time.Now()
+			for k, v := range m.items {
+				if now.After(v.expiry) {
+					delete(m.items, k)
+				}
 			}
+			m.mu.Unlock()
+		case <-m.stopCh:
+			return
 		}
-		m.mu.Unlock()
 	}
 }
 

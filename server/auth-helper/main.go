@@ -48,7 +48,7 @@ var (
 	httpClient          *http.Client
 )
 
-func init() {
+func setupGlobals() {
 	// 環境変数に基づいて使用するキャッシュ機構を決定します
 	cacheType := os.Getenv("CACHE_TYPE")
 	if cacheType == "memory" {
@@ -596,7 +596,7 @@ func readyzHandler(w http.ResponseWriter, r *http.Request) {
 	
 	// キャッシュの正常性確認として、存在しないキーを取得してみてエラーにならないか確認
 	_, err := cacheInstance.Get(ctx, "health_check_ping")
-	if err != nil && err.Error() != "redis: nil" && err.Error() != "not found" {
+	if err != nil && !errors.Is(err, ErrCacheMiss) {
 		http.Error(w, "Cache unavailable", http.StatusServiceUnavailable)
 		return
 	}
@@ -606,6 +606,7 @@ func readyzHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func main() {
+	setupGlobals()
 	tp, mp := initTelemetry()
 	if tp != nil {
 		defer func() {
