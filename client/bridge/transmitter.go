@@ -10,6 +10,8 @@ import (
 	"time"
 )
 
+var stdin io.Reader = os.Stdin
+
 type Transmitter struct {
 	Config      *Config
 	PostURLChan chan string
@@ -45,7 +47,7 @@ func (t *Transmitter) getToken() (string, error) {
 // Start は標準入力の読み取りと、MCPサーバへのPOSTループを開始します。
 func (t *Transmitter) Start() {
 	// 標準入力を非同期で読み取る
-	scanner := bufio.NewScanner(os.Stdin)
+	scanner := bufio.NewScanner(stdin)
 	go func() {
 		for scanner.Scan() {
 			t.StdinChan <- scanner.Text()

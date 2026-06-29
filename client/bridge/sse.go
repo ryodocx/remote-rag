@@ -12,6 +12,8 @@ import (
 	"time"
 )
 
+var stdout io.Writer = os.Stdout
+
 type SSEClient struct {
 	Config      *Config
 	PostURLChan chan string
@@ -114,8 +116,8 @@ func (c *SSEClient) readStream(body io.Reader) {
 				c.handleEndpointEvent(string(data))
 			} else {
 				// 標準出力へ中継
-				os.Stdout.Write(data)
-				os.Stdout.Write([]byte("\n"))
+				stdout.Write(data)
+				stdout.Write([]byte("\n"))
 			}
 		} else if len(line) == 0 {
 			currentEvent = ""

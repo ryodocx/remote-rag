@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -46,6 +47,9 @@ type TokenData struct {
 var (
 	discoveredAuthURL  string
 	discoveredTokenURL string
+	keyringGet         = keyring.Get
+	keyringSet         = keyring.Set
+	openBrowserFn      = openBrowser
 )
 
 func fetchOIDCDiscovery() {
@@ -87,7 +91,7 @@ func fetchOIDCDiscovery() {
 	}
 }
 
-func getOAuth2Config() *oauth2.Config {
+func getOAuth2Config() (*oauth2.Config, error) {
 	fetchOIDCDiscovery()
 
 	authURL := os.Getenv("OAUTH_AUTH_URL")
@@ -152,7 +156,7 @@ func Authenticate() (TokenData, error) {
 	
 	conf, err := getOAuth2Config()
 	if err != nil {
-		return "", err
+		return TokenData{}, err
 	}
 	verifier, challenge, err := generatePKCE()
 	if err != nil {
@@ -185,7 +189,7 @@ func Authenticate() (TokenData, error) {
 		oauth2.SetAuthURLParam("code_challenge_method", "S256"),
 	)
 
-	err = openBrowser(authURL)
+	err = openBrowserFn(authURL)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to open browser. Please open this URL manually:\n%s\n", authURL)
 	}
@@ -255,7 +259,7 @@ func saveTokenData(data TokenData) error {
 		fmt.Fprintf(os.Stderr, "Failed to marshal token: %v\n", err)
 		return err
 	}
-	err = keyring.Set(serviceName, getAccountName(), string(bytes))
+	err = keyringSet(serviceName, getAccountName(), string(bytes))
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to save to keyring: %v\n", err)
 		return err
@@ -265,7 +269,7 @@ func saveTokenData(data TokenData) error {
 
 // GetValidToken はKeychainからトークンを取得し、有効期限を確認します。トークンが存在しないか期限切れの場合は再認証を促します。
 func GetValidToken() (TokenData, error) {
-	secret, err := keyring.Get(serviceName, getAccountName())
+	secret, err := keyringGet(serviceName, getAccountName())
 	if err != nil {
 		// Keychainにトークンが見つからない場合は新規認証を実行
 		return Authenticate()
